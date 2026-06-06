@@ -1,0 +1,568 @@
+# **Inventory Management System - Product Requirements Document (PRD)**
+
+## **Document Information**
+
+| Document Version | Date | Author | Status |
+|-----------------|------|--------|--------|
+| 1.0 | 2026-06-05 | System Architect | Draft |
+
+---
+
+## **1. Executive Summary**
+
+### **1.1 Product Vision**
+To build a scalable, secure, and real-time inventory management system that enables businesses to track products, manage stock across multiple warehouses, generate insightful reports, and automate reordering processes—reducing stockouts by 80% and improving inventory accuracy to 99.9%.
+
+### **1.2 Business Objectives**
+- Reduce manual inventory errors by 95%
+- Decrease stockout situations by 80%
+- Improve inventory turnover ratio by 40%
+- Reduce holding costs by 25%
+- Achieve real-time inventory visibility across all warehouses
+- Enable data-driven procurement decisions
+
+### **1.3 Success Metrics (KPIs)**
+| Metric | Target | Measurement Method |
+|--------|--------|-------------------|
+| Inventory Accuracy | ≥ 99.5% | Monthly audit reconciliation |
+| Stockout Rate | < 2% | Number of SKUs out of stock / total SKUs |
+| Order Fulfillment Time | < 24 hours | Time from order to shipment |
+| System Uptime | 99.9% | Monitoring tools |
+| API Response Time | < 200ms (p95) | Performance monitoring |
+| User Adoption Rate | > 90% | Active users / total licensed users |
+
+---
+
+## **2. User Personas & Stakeholders**
+
+### **2.1 Primary Users**
+
+**1. Warehouse Manager** (35-50 years, 10+ years experience)
+- **Needs**: Real-time stock visibility, low stock alerts, transfer management
+- **Pain points**: Manual counting errors, delayed information, stock discrepancies
+- **Goals**: Maintain optimal stock levels, reduce waste
+
+**2. Inventory Clerk** (25-40 years, 3-8 years experience)
+- **Needs**: Quick stock entry/exit, barcode scanning, easy search
+- **Pain points**: Slow system response, complex navigation
+- **Goals**: Process 100+ transactions daily with zero errors
+
+**3. Procurement Manager** (40-55 years, 15+ years experience)
+- **Needs**: Reorder recommendations, supplier performance, cost analysis
+- **Pain points**: Unexpected stockouts, overstocking, manual reorder calculation
+- **Goals**: Optimize order quantities, negotiate better prices
+
+**4. Finance Controller** (45-60 years, 20+ years experience)
+- **Needs**: Inventory valuation reports, cost tracking, audit trails
+- **Pain points**: Inaccurate valuation, missing transaction history
+- **Goals**: Accurate financial reporting, fraud prevention
+
+**5. Admin/System Administrator** (30-45 years, 5-10 years experience)
+- **Needs**: User management, system configuration, backup/restore
+- **Pain points**: Security breaches, unauthorized access
+- **Goals**: Maintain system security, ensure compliance
+
+### **2.2 Secondary Stakeholders**
+- **CEO/Management**: Strategic insights, overall performance
+- **Sales Team**: Product availability information
+- **Customer Support**: Order status, return processing
+- **IT Team**: System maintenance, integration support
+
+---
+
+## **3. Functional Requirements**
+
+### **3.1 Authentication & Authorization** (Priority: P0 - Critical)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| AUTH-01 | User Registration | Email/password registration with email verification |
+| AUTH-02 | User Login | JWT-based authentication with refresh tokens |
+| AUTH-03 | Role-based Access | Admin, Manager, Viewer roles with granular permissions |
+| AUTH-04 | Password Management | Forgot password, reset password, password strength requirements |
+| AUTH-05 | Session Management | Concurrent session control, force logout |
+| AUTH-06 | MFA | Optional 2FA for admin accounts |
+| AUTH-07 | Audit Log | Track all login/logout activities with IP and device info |
+
+### **3.2 Product Management** (Priority: P0 - Critical)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| PRD-01 | Create Product | SKU auto-generation, name, category, description, brand |
+| PRD-02 | Edit Product | Update product details with version history |
+| PRD-03 | Delete Product | Soft delete with restore option, block deletion if stock exists |
+| PRD-04 | Bulk Import | CSV/Excel import with validation and error reporting |
+| PRD-05 | Bulk Export | Export filtered products to CSV/Excel |
+| PRD-06 | Search Products | Search by SKU, name, category, brand with autocomplete |
+| PRD-07 | Product Categories | Hierarchical categories (max 5 levels) |
+| PRD-08 | Product Variants | Size, color, style variants with separate SKUs |
+| PRD-09 | Barcode Management | Generate, print, and scan barcodes (Code 128, QR) |
+| PRD-10 | Product Images | Upload multiple images, resize, compress (max 5MB each) |
+
+### **3.3 Stock Management** (Priority: P0 - Critical)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| STK-01 | Receive Stock | Add stock with PO reference, batch number, expiry date |
+| STK-02 | Issue Stock | Remove stock for sales, returns, damages, adjustments |
+| STK-03 | Stock Transfer | Transfer between warehouses with approval workflow |
+| STK-04 | Stock Adjustment | Positive/negative adjustments with reason and approval |
+| STK-05 | Physical Count | Cycle counting, full inventory count with variance reporting |
+| STK-06 | Batch Tracking | Track by batch number, manufacturing date, expiry date |
+| STK-07 | Serial Number Tracking | Track individual items by serial number |
+| STK-08 | Stock Reservation | Reserve stock for pending orders |
+| STK-09 | Low Stock Alert | Automatic alerts when stock < reorder level |
+| STK-10 | Expiry Alert | Notify 30/15/7 days before expiry |
+
+### **3.4 Warehouse Management** (Priority: P1 - High)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| WAR-01 | Multi-warehouse | Create, edit, deactivate warehouses |
+| WAR-02 | Bin/Location Management | Define rack, shelf, bin locations within warehouse |
+| WAR-03 | Warehouse Zones | Receiving, storage, picking, shipping zones |
+| WAR-04 | Warehouse Transfer | Request, approve, execute transfers with tracking |
+| WAR-05 | Storage Conditions | Track temperature, humidity requirements for sensitive items |
+
+### **3.5 Transaction Management** (Priority: P0 - Critical)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| TRN-01 | Transaction Log | Immutable record of all stock movements |
+| TRN-02 | Transaction Types | Purchase, Sale, Return, Adjustment, Transfer, Write-off |
+| TRN-03 | Transaction Search | Filter by date, product, warehouse, type, user |
+| TRN-04 | Transaction Export | Export to CSV/Excel for audit purposes |
+| TRN-05 | Transaction Reversal | Ability to reverse incorrect transactions with reason |
+
+### **3.6 Reporting & Analytics** (Priority: P1 - High)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| RPT-01 | Stock Valuation | FIFO, LIFO, Weighted Average methods |
+| RPT-02 | Stock Movement Report | Daily/Monthly stock movement summary |
+| RPT-03 | Slow Moving Report | Products not moved in 30/60/90 days |
+| RPT-04 | Fast Moving Report | Top 20% products by turnover rate |
+| RPT-05 | Stock Aging Report | Stock age by days (0-30, 31-60, 61-90, 90+) |
+| RPT-06 | Reorder Report | Products below reorder level |
+| RPT-07 | Supplier Performance | On-time delivery, quality, pricing trends |
+| RPT-08 | Dashboard | Real-time KPIs: stock value, turnover, stockouts, alerts |
+| RPT-09 | Scheduled Reports | Email reports daily/weekly/monthly |
+| RPT-10 | Custom Reports | User-defined filters and columns |
+
+### **3.7 Integration Capabilities** (Priority: P2 - Medium)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| INT-01 | REST API | Full CRUD operations with OAuth2 authentication |
+| INT-02 | Webhooks | Real-time notifications for stock changes |
+| INT-03 | Accounting Integration | Export to QuickBooks, Xero, SAP |
+| INT-04 | POS Integration | Real-time stock sync with POS systems |
+| INT-05 | E-commerce Integration | WooCommerce, Shopify, Magento sync |
+| INT-06 | Barcode Scanner | WebSocket/HTTP support for scanner integration |
+
+### **3.8 Notification System** (Priority: P2 - Medium)
+
+| ID | Requirement | Acceptance Criteria |
+|----|-------------|---------------------|
+| NOT-01 | Email Notifications | Low stock, expiry, transfer status alerts |
+| NOT-02 | In-app Notifications | Real-time notifications in dashboard |
+| NOT-03 | SMS Alerts | Critical alerts (stockout, expiry) for managers |
+| NOT-04 | Notification Preferences | User-configurable notification settings |
+
+---
+
+## **4. Non-Functional Requirements**
+
+### **4.1 Performance Requirements**
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| PER-01 | API Response Time (p95) | < 200ms |
+| PER-02 | Database Query Time (p95) | < 100ms |
+| PER-03 | Concurrent Users | Support 1000+ concurrent users |
+| PER-04 | Bulk Import | 10,000 products in < 30 seconds |
+| PER-05 | Report Generation | < 5 seconds for 1M records |
+| PER-06 | Search Results | < 500ms for 1M products |
+
+### **4.2 Security Requirements**
+
+| ID | Requirement | Implementation |
+|----|-------------|----------------|
+| SEC-01 | Data Encryption | AES-256 for sensitive data, TLS 1.3 for transit |
+| SEC-02 | Password Policy | Minimum 8 chars, uppercase, lowercase, number, special |
+| SEC-03 | Session Timeout | 30 minutes inactivity |
+| SEC-04 | Rate Limiting | 100 requests per minute per IP |
+| SEC-05 | SQL Injection Prevention | Parameterized queries, ORM |
+| SEC-06 | XSS Prevention | Input sanitization, CSP headers |
+| SEC-07 | CSRF Protection | CSRF tokens for state-changing operations |
+| SEC-08 | Audit Trail | Immutable logs for all critical actions |
+| SEC-09 | GDPR Compliance | Data export, deletion capabilities |
+
+### **4.3 Availability & Reliability**
+
+| ID | Requirement | Target |
+|----|-------------|--------|
+| AVA-01 | System Uptime | 99.9% (excluding planned maintenance) |
+| AVA-02 | Backup Frequency | Daily full backups, hourly incremental |
+| AVA-03 | RTO (Recovery Time Objective) | < 4 hours |
+| AVA-04 | RPO (Recovery Point Objective) | < 1 hour |
+| AVA-05 | Disaster Recovery | Automated failover to secondary region |
+
+### **4.4 Scalability Requirements**
+
+| ID | Requirement | Specification |
+|----|-------------|---------------|
+| SCA-01 | Horizontal Scaling | Stateless application servers |
+| SCA-02 | Database Scaling | Read replicas, sharding ready |
+| SCA-03 | Data Volume | Support 10M+ products, 100M+ transactions |
+| SCA-04 | Caching Strategy | Redis for session, query caching |
+
+### **4.5 Usability Requirements**
+
+| ID | Requirement | Specification |
+|----|-------------|---------------|
+| USR-01 | Page Load Time | < 2 seconds |
+| USR-02 | Mobile Responsive | Works on tablets for warehouse scanning |
+| USR-03 | Browser Support | Chrome, Firefox, Safari, Edge (latest 2 versions) |
+| USR-04 | Accessibility | WCAG 2.1 Level AA compliance |
+| USR-05 | Keyboard Navigation | Full keyboard support for power users |
+
+---
+
+## **5. Data Models (Core Entities)**
+
+### **5.1 Entity Relationship Diagram**
+
+```
+User (1) ----< (n) Transaction
+User (1) ----< (n) Stock (modified_by)
+
+Product (1) ----< (n) Stock
+Product (1) ----< (n) Transaction
+
+Warehouse (1) ----< (n) Stock
+Warehouse (1) ----< (n) Transaction
+
+Product (n) ----< (1) Category (optional)
+Product (n) ----< (1) Supplier (optional)
+Product (1) ----< (n) ProductImage
+Product (1) ----< (n) ProductVariant
+```
+
+### **5.2 Critical Data Fields**
+
+**Product:**
+- id, sku (unique), name, description
+- category_id, brand, supplier_id
+- unit_price, cost_price, reorder_level
+- weight, dimensions (L×W×H)
+- is_active, created_at, updated_at
+
+**Stock:**
+- id, product_id, warehouse_id
+- quantity, reserved_quantity
+- batch_number, expiry_date (optional)
+- last_counted_at
+
+**Transaction:**
+- id, product_id, warehouse_id, user_id
+- type (enum), quantity, previous_qty, new_qty
+- reference (PO/Order #), notes
+- created_at (immutable)
+
+---
+
+## **6. API Specifications (High-Level)**
+
+### **6.1 API Endpoints Structure**
+
+```
+Base URL: https://api.inventory.com/v1
+
+Authentication: Bearer {JWT_TOKEN}
+
+Headers: Content-Type: application/json
+         Accept: application/json
+```
+
+### **6.2 Core Endpoints**
+
+| Endpoint | Method | Description | Rate Limit |
+|----------|--------|-------------|------------|
+| `/auth/register` | POST | User registration | 10/min |
+| `/auth/login` | POST | User login | 20/min |
+| `/auth/refresh` | POST | Refresh token | 30/min |
+| `/products` | GET | List products | 100/min |
+| `/products` | POST | Create product | 50/min |
+| `/products/{id}` | GET | Get product | 200/min |
+| `/products/{id}` | PUT | Update product | 50/min |
+| `/products/{id}` | DELETE | Delete product | 20/min |
+| `/stock/add` | POST | Add stock | 100/min |
+| `/stock/remove` | POST | Remove stock | 100/min |
+| `/stock/transfer` | POST | Transfer stock | 50/min |
+| `/stock/transactions` | GET | Transaction history | 100/min |
+| `/reports/valuation` | GET | Stock valuation | 20/min |
+| `/reports/low-stock` | GET | Low stock report | 50/min |
+| `/warehouses` | GET | List warehouses | 100/min |
+
+### **6.3 Sample API Response Format**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "prod_123",
+    "sku": "LAP-DELL-XPS-001",
+    "name": "Dell XPS 15"
+  },
+  "message": "Product created successfully",
+  "meta": {
+    "timestamp": "2026-06-05T10:30:00Z",
+    "request_id": "req_abc123"
+  }
+}
+```
+
+---
+
+## **7. User Interface Requirements (Frontend)**
+
+### **7.1 Key Screens**
+
+1. **Dashboard**
+   - Real-time stock value chart
+   - Low stock alerts widget
+   - Recent transactions feed
+   - Top moving products
+
+2. **Product Management**
+   - Product list with search/filters
+   - Product detail view with image gallery
+   - Bulk import/export interface
+
+3. **Stock Management**
+   - Stock receipt form with barcode scanner
+   - Stock issue form
+   - Stock transfer wizard
+   - Stock adjustment form
+
+4. **Warehouse View**
+   - Warehouse selector
+   - Bin location map view
+   - Stock by location
+
+5. **Reports**
+   - Report selector
+   - Date range picker
+   - Export options (PDF, Excel, CSV)
+   - Schedule report interface
+
+6. **Admin Panel**
+   - User management (CRUD)
+   - Role/permission matrix
+   - System settings
+   - Audit log viewer
+
+### **7.2 Design Requirements**
+
+- **Framework**: React/Vue.js with TypeScript
+- **UI Library**: Material-UI/Ant Design/Tailwind CSS
+- **Responsive**: Desktop-first with tablet support
+- **Dark Mode**: Support light/dark themes
+- **Real-time**: WebSocket for live updates
+- **Offline Support**: PWA for warehouse scanning
+
+---
+
+## **8. Technical Architecture**
+
+### **8.1 High-Level Architecture**
+
+```
+[Client] → [CDN] → [Load Balancer] → [API Gateway]
+                                         ↓
+                            [Application Servers (Node.js)]
+                                ↓                ↓
+                         [Redis Cache]    [Message Queue]
+                                ↓                ↓
+                         [Database (PostgreSQL)] [Worker Servers]
+```
+
+### **8.2 Technology Stack**
+
+| Layer | Technology | Justification |
+|-------|------------|---------------|
+| Backend | Node.js + TypeScript | High performance, large ecosystem |
+| Framework | Express.js | Lightweight, flexible |
+| Database | PostgreSQL 15 | ACID compliance, JSON support |
+| ORM | Prisma | Type-safe, migrations |
+| Cache | Redis 7 | Sub-millisecond response |
+| Queue | Bull | Redis-based, reliable |
+| Auth | JWT + OAuth2 | Stateless, scalable |
+| API Doc | Swagger/OpenAPI | Standardized documentation |
+| Monitoring | Prometheus + Grafana | Open source, industry standard |
+| Logging | Winston + ELK | Centralized log management |
+
+### **8.3 Deployment Architecture**
+
+```
+Environment: Cloud (AWS/GCP/Azure)
+
+Components:
+- 3x Application servers (t3.large)
+- 1x Primary PostgreSQL (db.r5.large)
+- 1x Standby PostgreSQL (for failover)
+- 2x Read replicas for reporting
+- 1x Redis cluster (cache.t3.micro × 3)
+- 1x S3 bucket for file storage
+- 1x CDN (CloudFront/CloudFlare)
+
+Auto-scaling:
+- CPU > 70%: Add instance
+- Memory > 80%: Add instance
+- Scale: 2-10 instances
+```
+
+---
+
+## **9. Security & Compliance**
+
+### **9.1 Security Controls**
+
+| Control | Implementation |
+|---------|----------------|
+| Authentication | JWT with 15-minute expiry, refresh tokens |
+| Authorization | RBAC with 3 default roles (expandable) |
+| Data Encryption | AES-256 at rest, TLS 1.3 in transit |
+| API Security | Rate limiting, API keys for integrations |
+| Input Validation | Zod schema validation |
+| Output Encoding | Escape HTML, JSON sanitization |
+| Session Management | Redis session store, secure cookies |
+| CORS | Whitelist allowed origins |
+| Security Headers | Helmet.js (HSTS, XSS, CSP) |
+
+### **9.2 Compliance Requirements**
+
+- **GDPR**: Right to deletion, data portability
+- **CCPA**: Opt-out of data selling (not applicable)
+- **SOX**: Audit trails for financial data
+- **PCI DSS**: If storing payment info (avoid if possible)
+
+---
+
+## **10. Timeline & Milestones**
+
+### **Phase 1: MVP (8 weeks)**
+- **Week 1-2**: Project setup, database schema, authentication
+- **Week 3-4**: Product management (CRUD, search, import)
+- **Week 5-6**: Stock management (add, remove, transactions)
+- **Week 7-8**: Basic reporting, testing, deployment
+
+**Deliverables**: Working system with core features, API documentation
+
+### **Phase 2: Enhancements (6 weeks)**
+- **Week 9-10**: Multi-warehouse support, transfers
+- **Week 11-12**: Advanced reporting, dashboards
+- **Week 13-14**: Notifications, alerts, scheduled reports
+
+**Deliverables**: Complete system with all P0/P1 features
+
+### **Phase 3: Enterprise Features (4 weeks)**
+- **Week 15-16**: Integration APIs, webhooks
+- **Week 17-18**: Performance optimization, security audit
+
+**Deliverables**: Production-ready enterprise system
+
+---
+
+## **11. Risk Assessment**
+
+| Risk | Probability | Impact | Mitigation |
+|------|------------|--------|-------------|
+| Database performance issues | Medium | High | Implement caching, indexing, read replicas |
+| Data inconsistency | Low | Critical | ACID transactions, immutable audit logs |
+| Security breach | Low | Critical | Regular security audits, penetration testing |
+| User adoption resistance | Medium | Medium | Training materials, intuitive UI |
+| Integration failures | Medium | Medium | Mock testing, gradual rollout |
+| Scalability limitations | Low | High | Design for horizontal scaling from day 1 |
+
+---
+
+## **12. Assumptions & Constraints**
+
+### **Assumptions**
+1. Users have modern browsers with JavaScript enabled
+2. Internet bandwidth of at least 1 Mbps
+3. Barcode scanners support USB keyboard emulation
+4. No real-time synchronization with external systems required initially
+5. Database backup storage available (min 100GB)
+
+### **Constraints**
+1. Budget: $50,000 for initial development
+2. Timeline: 18 weeks to MVP
+3. Team size: 3 developers, 1 QA, 1 PM
+4. Must use open-source technologies (no licensing costs)
+5. Must support minimum 500 concurrent users
+
+---
+
+## **13. Acceptance Criteria**
+
+### **MVP Launch Criteria**
+- [ ] All P0 (critical) requirements implemented
+- [ ] 95%+ test coverage for core features
+- [ ] API response time < 200ms for 95% of requests
+- [ ] Successful load test with 500 concurrent users
+- [ ] Security audit passed (no critical vulnerabilities)
+- [ ] User documentation complete
+- [ ] Deployment scripts automated
+- [ ] Monitoring and alerting configured
+
+### **Production Readiness**
+- [ ] Backup and restore procedures tested
+- [ ] Disaster recovery plan documented
+- [ ] Rollback procedure tested
+- [ ] Performance benchmark meets KPIs
+- [ ] All integrations tested
+- [ ] User acceptance testing completed
+- [ ] Training materials delivered
+
+---
+
+## **14. Appendices**
+
+### **14.1 Glossary**
+- **SKU**: Stock Keeping Unit - Unique identifier for each product
+- **Stockout**: When inventory quantity reaches zero
+- **Cycle Counting**: Regular counting of subset of inventory
+- **FIFO**: First In, First Out - Inventory valuation method
+- **Reorder Level**: Minimum stock quantity that triggers reorder
+
+### **14.2 References**
+- REST API Best Practices (Microsoft)
+- OWASP Security Guidelines
+- PostgreSQL Performance Tuning Guide
+- Node.js Production Best Practices
+
+### **14.3 Sign-off**
+
+| Role | Name | Signature | Date |
+|------|------|-----------|------|
+| Product Manager | _______ | _______ | _______ |
+| Technical Lead | _______ | _______ | _______ |
+| QA Lead | _______ | _______ | _______ |
+| Security Officer | _______ | _______ | _______ |
+
+---
+
+## **15. Version History**
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 0.1 | 2026-05-20 | Initial draft | PM Team |
+| 0.5 | 2026-05-28 | Added technical requirements | Tech Lead |
+| 1.0 | 2026-06-05 | Final version for development | Product Team |
+
+---
+
+This PRD serves as the **single source of truth** for the Inventory Management System development. Any changes require formal change request approval. For implementation details, refer to the Technical Specification Document.

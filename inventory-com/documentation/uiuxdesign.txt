@@ -1,0 +1,1297 @@
+# **Inventory Management System - UI/UX Design Brief**
+
+## **Document Information**
+
+| Document Version | Date | Author | Status |
+|-----------------|------|--------|---------|
+| 1.0 | 2026-06-06 | UX Design Lead | Approved for Development |
+
+---
+
+## **1. Executive Summary**
+
+### **1.1 Design Vision**
+Create an **intelligent, efficient, and delightful** inventory management platform that transforms complex warehouse operations into simple, intuitive workflows. Design for **speed, clarity, and minimal cognitive load** while supporting power users with advanced features.
+
+### **1.2 Design Principles**
+
+| Principle | Description | Example |
+|-----------|-------------|---------|
+| **Clarity over Creativity** | Function first, aesthetics second | Clear hierarchy, obvious actions |
+| **Speed is a Feature** | Optimize for rapid task completion | Keyboard shortcuts, bulk actions |
+| **Progressive Disclosure** | Show what's needed, hide the rest | Advanced filters collapsible |
+| **Consistency** | Same patterns everywhere | Same button styles, same modals |
+| **Feedback Rich** | Every action has a response | Toast notifications, loading states |
+| **Forgiving** | Easy to undo, clear error recovery | Undo button, confirmation dialogs |
+| **Mobile-First for Field Work** | Optimize for scanning on mobile | Large touch targets, offline support |
+
+### **1.3 Design Goals**
+- **Reduce task completion time by 40%** compared to legacy system
+- **Achieve 90% user satisfaction** (SUS score)
+- **Zero training needed** for basic tasks for warehouse staff
+- **Support 100+ concurrent users** without performance degradation
+- **Accessibility WCAG 2.1 AA** compliance
+
+---
+
+## **2. Target Users & Contexts**
+
+### **2.1 Primary Personas with Context**
+
+| Persona | Environment | Device | Key Needs | Pain Points |
+|---------|-------------|--------|-----------|-------------|
+| **Warehouse Manager** | Office + Warehouse floor | Desktop (80%) + Tablet (20%) | Overview dashboard, approvals, reports | Too many clicks, slow reports |
+| **Inventory Clerk** | Warehouse receiving dock | Desktop + Barcode Scanner | Fast data entry, scanning | Typing errors, slow forms |
+| **Picker/Packer** | Warehouse aisles | Ruggedized Mobile + Scanner | Quick picks, clear instructions | Small text, poor scanning |
+| **Admin** | Office | Desktop | User management, audit logs | Complex permissions |
+| **Executive** | Remote/Office | Desktop + Mobile (view only) | KPIs, trends, alerts | Information overload |
+
+### **2.2 Environmental Considerations**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHYSICAL WORK CONTEXTS                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  🏢 OFFICE DESK                     🏭 WAREHOUSE FLOOR                       │
+│  • Good lighting                    • Dim lighting                          │
+│  • Sitting position                 • Standing/walking                      │
+│  • Mouse + Keyboard                 • Touch + Scanner                       │
+│  • Large monitor                    • Small rugged device                   │
+│  • Uninterrupted                    • Frequent interruptions                │
+│  • Focused work                     • Task switching                        │
+│                                                                              │
+│  📦 RECEIVING DOCK                   🚚 LOADING DOCK                         │
+│  • Variable lighting                • Outdoor lighting                      │
+│  • Dust/dirt exposure               • Weather exposure                      │
+│  • Gloves sometimes worn            • Gloves always worn                    │
+│  • Scanner + tablet                 • Voice commands preferred              │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## **3. Information Architecture**
+
+### **3.1 Sitemap with Priority**
+
+```
+📱 INVENTORY MANAGEMENT SYSTEM
+│
+├── 🏠 DASHBOARD (Priority: P0 - Default landing)
+│   ├── KPI Widgets (4-6 key metrics)
+│   ├── Stock Value Trend Chart
+│   ├── Low Stock Alerts Carousel
+│   ├── Recent Activity Feed
+│   └── Quick Actions Bar
+│
+├── 📦 PRODUCTS (Priority: P0)
+│   ├── Product List (with infinite scroll)
+│   ├── Product Detail (tabs: Info, Stock, Transactions, Images)
+│   ├── Create/Edit Product (wizard-style)
+│   ├── Bulk Import/Export (modal)
+│   ├── Categories Management
+│   └── Suppliers Management
+│
+├── 📊 STOCK (Priority: P0)
+│   ├── Stock Overview (by warehouse/location)
+│   ├── Add Stock (quick form)
+│   ├── Remove Stock (quick form)
+│   ├── Transfer Stock (wizard)
+│   ├── Stock Adjustments (with reason)
+│   └── Batch/Serial Tracking
+│
+├── 🏭 WAREHOUSES (Priority: P1)
+│   ├── Warehouse List (map view optional)
+│   ├── Warehouse Detail
+│   ├── Location/Bin Management (grid view)
+│   └── Inter-Warehouse Transfers
+│
+├── 📜 TRANSACTIONS (Priority: P0)
+│   ├── Transaction History (searchable, filterable)
+│   ├── Transaction Detail
+│   └── Export/Audit
+│
+├── 📈 REPORTS (Priority: P1)
+│   ├── Report Dashboard
+│   ├── Stock Valuation
+│   ├── Movement Report
+│   ├── Low Stock Report
+│   ├── Slow Moving Report
+│   ├── Stock Aging
+│   └── Scheduled Reports
+│
+├── 🔔 NOTIFICATIONS (Priority: P2)
+│   ├── Inbox
+│   ├── Alert Settings
+│   └── Read/Archive
+│
+└── ⚙️ ADMIN (Priority: P2 - Role restricted)
+    ├── User Management
+    ├── Role & Permissions
+    ├── Audit Log
+    ├── System Settings
+    ├── API Keys
+    └── Webhooks
+```
+
+### **3.2 Navigation Model**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         NAVIGATION STRUCTURE                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  DESKTOP LAYOUT (Sidebar + Top Bar)                                          │
+│  ┌────────┬────────────────────────────────────────────────────────────┐   │
+│  │        │  🔍 Search...                    👤 John Doe    🔔  ⚙️      │   │
+│  │  LOGO   ├────────────────────────────────────────────────────────────┤   │
+│  │  🏠     │                                                            │   │
+│  │  📦     │                       MAIN CONTENT AREA                    │   │
+│  │  📊     │                                                            │   │
+│  │  🏭     │                                                            │   │
+│  │  📜     │                                                            │   │
+│  │  📈     │                                                            │   │
+│  │  ⚙️     │                                                            │   │
+│  │        │                                                            │   │
+│  │  👤     │                                                            │   │
+│  └────────┴────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  MOBILE LAYOUT (Bottom Tab Bar)                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                            CONTENT                                   │    │
+│  │                                                                      │    │
+│  │                                                                      │    │
+│  │                                                                      │    │
+│  ├─────────────────────────────────────────────────────────────────────┤    │
+│  │  🏠      📦      🔍      🔔      👤                                 │    │
+│  │ Home   Products Search  Alerts  Profile                             │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## **4. Visual Design System**
+
+### **4.1 Color Palette**
+
+```scss
+// Primary Colors (Brand Identity)
+$primary-50:  #E8F0FE;  // Hover backgrounds
+$primary-100: #D1E4FC;
+$primary-200: #A2C9F9;
+$primary-300: #74AEF6;
+$primary-400: #4593F3;
+$primary-500: #1E88E5;  // Primary brand color
+$primary-600: #186DC7;  // Active/Pressed
+$primary-700: #1252A0;
+$primary-800: #0C3679;
+$primary-900: #061B52;
+
+// Secondary Colors (Status & Actions)
+$success-500: #10B981;  // Stock added, confirm
+$warning-500: #F59E0B;  // Low stock warning
+$error-500:   #EF4444;  // Errors, stockout
+$info-500:    #3B82F6;  // Information
+
+// Neutral Colors (Text & Backgrounds)
+$gray-50:   #F9FAFB;  // Page background
+$gray-100:  #F3F4F6;  // Card backgrounds
+$gray-200:  #E5E7EB;  // Borders
+$gray-300:  #D1D5DB;
+$gray-400:  #9CA3AF;  // Disabled text
+$gray-500:  #6B7280;  // Secondary text
+$gray-600:  #4B5563;
+$gray-700:  #374151;  // Primary text
+$gray-800:  #1F2937;
+$gray-900:  #111827;  // Headings
+
+// Semantic Colors
+$stock-high:   #10B981;  // Green - Stock > 50% of capacity
+$stock-medium: #F59E0B;  // Amber - Stock 10-50%
+$stock-low:    #EF4444;  // Red - Stock < reorder level
+$stock-out:    #6B7280;  // Gray - Out of stock
+
+// Dark Mode Colors
+$dark-bg:       #1A1A1A;
+$dark-surface:  #2D2D2D;
+$dark-border:   #404040;
+$dark-text:     #E5E5E5;
+```
+
+### **4.2 Typography System**
+
+```scss
+// Font Family
+$font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-mono: 'JetBrains Mono', 'SF Mono', monospace;  // For SKUs, barcodes
+
+// Type Scale (Modular Scale: 1.25)
+$text-xs:   0.75rem;   // 12px - Meta, timestamps
+$text-sm:   0.875rem;  // 14px - Secondary text, table cells
+$text-base: 1rem;      // 16px - Body text
+$text-lg:   1.125rem;  // 18px - Card titles
+$text-xl:   1.25rem;   // 20px - Section headers
+$text-2xl:  1.5rem;    // 24px - Page titles
+$text-3xl:  1.875rem;  // 30px - Dashboard KPI numbers
+$text-4xl:  2.25rem;   // 36px - Hero numbers
+
+// Font Weights
+$font-light:    300;
+$font-regular:  400;
+$font-medium:   500;
+$font-semibold: 600;
+$font-bold:     700;
+
+// Line Heights
+$leading-tight:   1.25;   // Headings
+$leading-normal:  1.5;    // Body text
+$leading-relaxed: 1.75;   // Long form
+```
+
+### **4.3 Spacing System (8px Grid)**
+
+```scss
+// Base unit: 8px
+$spacing-0:  0;
+$spacing-1:  0.25rem;  // 4px
+$spacing-2:  0.5rem;   // 8px
+$spacing-3:  0.75rem;  // 12px
+$spacing-4:  1rem;     // 16px
+$spacing-5:  1.25rem;  // 20px
+$spacing-6:  1.5rem;   // 24px
+$spacing-8:  2rem;     // 32px
+$spacing-10: 2.5rem;   // 40px
+$spacing-12: 3rem;     // 48px
+$spacing-16: 4rem;     // 64px
+$spacing-20: 5rem;     // 80px
+$spacing-24: 6rem;     // 96px
+```
+
+### **4.4 Border Radius**
+
+```scss
+$radius-none:   0;
+$radius-sm:     0.25rem;  // 4px - Buttons small
+$radius-base:   0.375rem; // 6px - Cards, inputs
+$radius-md:     0.5rem;   // 8px - Modals
+$radius-lg:     0.75rem;  // 12px - Large cards
+$radius-xl:     1rem;     // 16px - Profile images
+$radius-full:   9999px;   // Pills, avatars
+```
+
+### **4.5 Shadows**
+
+```scss
+// Elevation System
+$shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+$shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+// Component-specific
+$shadow-card: $shadow-sm;
+$shadow-modal: $shadow-xl;
+$shadow-dropdown: $shadow-md;
+```
+
+---
+
+## **5. Component Library**
+
+### **5.1 Buttons**
+
+```scss
+// Button Variants
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-2;
+  padding: $spacing-2 $spacing-4;
+  font-size: $text-sm;
+  font-weight: $font-medium;
+  border-radius: $radius-base;
+  transition: all 0.2s;
+  cursor: pointer;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-primary {
+  background: $primary-500;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background: $primary-600;
+    transform: translateY(-1px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+.btn-secondary {
+  background: white;
+  color: $gray-700;
+  border: 1px solid $gray-300;
+  
+  &:hover:not(:disabled) {
+    background: $gray-50;
+    border-color: $gray-400;
+  }
+}
+
+.btn-danger {
+  background: $error-500;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background: darken($error-500, 10%);
+  }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: $gray-600;
+  
+  &:hover:not(:disabled) {
+    background: $gray-100;
+    color: $gray-900;
+  }
+}
+
+// Button Sizes
+.btn-sm {
+  padding: $spacing-1 $spacing-3;
+  font-size: $text-xs;
+}
+
+.btn-lg {
+  padding: $spacing-3 $spacing-6;
+  font-size: $text-base;
+}
+
+// Icon buttons
+.btn-icon {
+  padding: $spacing-2;
+  border-radius: $radius-full;
+}
+```
+
+### **5.2 Form Elements**
+
+```scss
+// Input Fields
+.input {
+  width: 100%;
+  padding: $spacing-2 $spacing-3;
+  font-size: $text-sm;
+  border: 1px solid $gray-300;
+  border-radius: $radius-base;
+  background: white;
+  transition: all 0.2s;
+  
+  &:focus {
+    outline: none;
+    border-color: $primary-500;
+    box-shadow: 0 0 0 3px rgba($primary-500, 0.1);
+  }
+  
+  &::placeholder {
+    color: $gray-400;
+  }
+  
+  &.error {
+    border-color: $error-500;
+    
+    &:focus {
+      box-shadow: 0 0 0 3px rgba($error-500, 0.1);
+    }
+  }
+}
+
+// Labels
+.label {
+  display: block;
+  margin-bottom: $spacing-2;
+  font-size: $text-sm;
+  font-weight: $font-medium;
+  color: $gray-700;
+  
+  .required::after {
+    content: '*';
+    color: $error-500;
+    margin-left: $spacing-1;
+  }
+}
+
+// Checkboxes & Radio
+.checkbox, .radio {
+  display: flex;
+  align-items: center;
+  gap: $spacing-2;
+  cursor: pointer;
+  
+  input {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+  
+  label {
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+}
+
+// Select Dropdown
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,...");
+  background-repeat: no-repeat;
+  background-position: right $spacing-3 center;
+  padding-right: $spacing-8;
+}
+```
+
+### **5.3 Cards & Containers**
+
+```scss
+// Card Component
+.card {
+  background: white;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  overflow: hidden;
+  
+  &-header {
+    padding: $spacing-4 $spacing-6;
+    border-bottom: 1px solid $gray-200;
+    background: $gray-50;
+  }
+  
+  &-body {
+    padding: $spacing-6;
+  }
+  
+  &-footer {
+    padding: $spacing-4 $spacing-6;
+    border-top: 1px solid $gray-200;
+    background: $gray-50;
+  }
+}
+
+// Dashboard KPI Card
+.kpi-card {
+  background: white;
+  border-radius: $radius-lg;
+  padding: $spacing-4 $spacing-6;
+  box-shadow: $shadow-sm;
+  transition: all 0.2s;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-md;
+  }
+  
+  .kpi-title {
+    font-size: $text-sm;
+    color: $gray-500;
+    margin-bottom: $spacing-2;
+  }
+  
+  .kpi-value {
+    font-size: $text-3xl;
+    font-weight: $font-bold;
+    color: $gray-900;
+  }
+  
+  .kpi-trend {
+    font-size: $text-xs;
+    margin-top: $spacing-2;
+    
+    &.trend-up { color: $success-500; }
+    &.trend-down { color: $error-500; }
+  }
+}
+```
+
+### **5.4 Tables & Data Grids**
+
+```scss
+// Data Table
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  
+  th {
+    text-align: left;
+    padding: $spacing-3 $spacing-4;
+    font-size: $text-sm;
+    font-weight: $font-semibold;
+    color: $gray-600;
+    background: $gray-50;
+    border-bottom: 1px solid $gray-200;
+    
+    &.sortable {
+      cursor: pointer;
+      
+      &:hover {
+        background: $gray-100;
+      }
+    }
+  }
+  
+  td {
+    padding: $spacing-3 $spacing-4;
+    font-size: $text-sm;
+    color: $gray-700;
+    border-bottom: 1px solid $gray-100;
+  }
+  
+  tr:hover td {
+    background: $primary-50;
+  }
+  
+  // Status badges in tables
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: $spacing-1 $spacing-2;
+    border-radius: $radius-full;
+    font-size: $text-xs;
+    font-weight: $font-medium;
+    
+    &.badge-success { background: $success-100; color: $success-700; }
+    &.badge-warning { background: $warning-100; color: $warning-700; }
+    &.badge-error { background: $error-100; color: $error-700; }
+    &.badge-info { background: $info-100; color: $info-700; }
+  }
+}
+
+// Responsive table (horizontal scroll on mobile)
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+```
+
+### **5.5 Modals & Dialogs**
+
+```scss
+// Modal Overlay
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+// Modal Container
+.modal {
+  background: white;
+  border-radius: $radius-xl;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: $shadow-2xl;
+  animation: modalSlideIn 0.2s ease;
+  
+  &-sm { max-width: 400px; }
+  &-lg { max-width: 800px; }
+  &-xl { max-width: 1200px; }
+  
+  &-header {
+    padding: $spacing-4 $spacing-6;
+    border-bottom: 1px solid $gray-200;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    h2 {
+      font-size: $text-xl;
+      font-weight: $font-semibold;
+      margin: 0;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: $text-2xl;
+      cursor: pointer;
+      color: $gray-400;
+      
+      &:hover {
+        color: $gray-600;
+      }
+    }
+  }
+  
+  &-body {
+    padding: $spacing-6;
+    overflow-y: auto;
+    max-height: calc(90vh - 120px);
+  }
+  
+  &-footer {
+    padding: $spacing-4 $spacing-6;
+    border-top: 1px solid $gray-200;
+    display: flex;
+    justify-content: flex-end;
+    gap: $spacing-3;
+    background: $gray-50;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+```
+
+### **5.6 Toast Notifications**
+
+```scss
+// Toast Container
+.toast-container {
+  position: fixed;
+  bottom: $spacing-6;
+  right: $spacing-6;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-3;
+}
+
+// Toast Component
+.toast {
+  display: flex;
+  align-items: center;
+  gap: $spacing-3;
+  padding: $spacing-3 $spacing-4;
+  background: white;
+  border-radius: $radius-base;
+  box-shadow: $shadow-lg;
+  min-width: 300px;
+  animation: slideInRight 0.3s ease;
+  
+  &-success { border-left: 4px solid $success-500; }
+  &-error { border-left: 4px solid $error-500; }
+  &-warning { border-left: 4px solid $warning-500; }
+  &-info { border-left: 4px solid $info-500; }
+  
+  .toast-icon {
+    font-size: $text-xl;
+  }
+  
+  .toast-message {
+    flex: 1;
+    font-size: $text-sm;
+    color: $gray-700;
+  }
+  
+  .toast-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: $gray-400;
+    
+    &:hover {
+      color: $gray-600;
+    }
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+```
+
+---
+
+## **6. Key Screen Designs**
+
+### **6.1 Dashboard Screen**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🔍 Search...                                    👤 John Doe   🔔  ⚙️      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  📊 DASHBOARD                                                    [Refresh]  │
+│                                                                              │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐          │
+│  │ Total Stock │ │ Stock Value │ │Low Stock    │ │Monthly      │          │
+│  │   Value     │ │   Trend     │ │  Alerts     │ │  Turnover   │          │
+│  │             │ │             │ │             │ │             │          │
+│  │  $1,234,567 │ │    ↑ 12%    │ │     8       │ │    3.2x     │          │
+│  │   vs last   │ │   vs last   │ │  Products   │ │   vs last   │          │
+│  │   month:    │ │   month     │ │  need reorder│ │   month:    │          │
+│  │   ↑ 5.2%    │ │             │ │             │ │   ↑ 0.5x    │          │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘          │
+│                                                                              │
+│  ┌─────────────────────────────────┐ ┌─────────────────────────────────┐   │
+│  │ 📈 STOCK VALUE TREND             │ │ ⚠️ LOW STOCK ALERTS              │   │
+│  │                                 │ │                                 │   │
+│  │  1.5M ┤      ╭─╮               │ │ • Dell XPS 15 - 8 left          │   │
+│  │  1.0M ┤    ╭─╯ ╰─╮             │ │   Reorder level: 10             │   │
+│  │  0.5M ┤  ╭─╯     ╰─╮           │ │   [Order Now]                   │   │
+│  │     0 ┼──╯         ╰──         │ │                                 │   │
+│  │      Jan Feb Mar Apr May       │ │ • iPhone 15 Pro - 5 left        │   │
+│  │                                 │ │   Reorder level: 20             │   │
+│  │  [1D] [1W] [1M] [3M] [1Y]      │ │   [Order Now]                   │   │
+│  └─────────────────────────────────┘ └─────────────────────────────────┘   │
+│                                                                              │
+│  ┌─────────────────────────────────┐ ┌─────────────────────────────────┐   │
+│  │ 🏆 TOP MOVING PRODUCTS           │ │ 📋 RECENT ACTIVITY               │   │
+│  │                                 │ │                                 │   │
+│  │ 1. iPhone 15 Pro    245 units   │ │ 10:30 - Stock added: 50 units   │   │
+│  │ 2. Dell XPS 15      189 units   │ │         Dell XPS 15 (Main WH)   │   │
+│  │ 3. Samsung TV       156 units   │ │ 09:15 - Transfer completed:     │   │
+│  │ 4. MacBook Pro      134 units   │ │         20 iPhones to East WH   │   │
+│  │ 5. AirPods Pro      98 units    │ │ 08:45 - Low stock alert:        │   │
+│  │                                 │ │         iPhone 15 Pro (5 left)  │   │
+│  │ [View All Products]            │ │                                 │   │
+│  └─────────────────────────────────┘ └─────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### **6.2 Product List Screen**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📦 PRODUCTS                                                   [+ New Product]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ 🔍 Search by name, SKU, brand...    [All Categories ▼] [All Status ▼] │    │
+│  │                                                              [Export] │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  Showing 1,234 products                                                      │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ SKU           │ Product Name        │ Category    │ Stock │ Price   │    │
+│  ├─────────────────────────────────────────────────────────────────────┤    │
+│  │ LAP-DELL-001  │ Dell XPS 15         │ Electronics │ 47    │ $1,299  │    │
+│  │               │ 🖼️ [Image]          │             │ 🔴Low │         │    │
+│  │               │ Brand: Dell         │             │      │         │    │
+│  ├─────────────────────────────────────────────────────────────────────┤    │
+│  │ PHN-APP-001   │ iPhone 15 Pro       │ Electronics │ 22    │ $999    │    │
+│  │               │ 🖼️ [Image]          │             │ 🟢OK  │         │    │
+│  │               │ Brand: Apple        │             │      │         │    │
+│  ├─────────────────────────────────────────────────────────────────────┤    │
+│  │ TV-SAM-001    │ Samsung 65" 4K      │ Electronics │ 5     │ $1,499  │    │
+│  │               │ 🖼️ [Image]          │             │ ⚠️Low │         │    │
+│  │               │ Brand: Samsung      │             │      │         │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  [< Prev] Page 1 of 25 [Next >]    Show [20 ▼] per page                     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### **6.3 Add Stock Form**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📦 ADD STOCK                                                     [X] Close │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  PRODUCT INFORMATION                                                 │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ Search or scan product: [Dell XPS 15_______________] [🔍]    │    │    │
+│  │  │                                                              │    │    │
+│  │  │ Selected: Dell XPS 15 - SKU: LAP-DELL-001                   │    │    │
+│  │  │ Current Stock: 47 units in Main Warehouse                   │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  STOCK DETAILS                                                      │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ Quantity: [50      ] units                                  │    │    │
+│  │  │                                                              │    │    │
+│  │  │ Warehouse: [Main Warehouse ▼]                               │    │    │
+│  │  │ Location:   [A-01-B-03_______________] [Verify]             │    │    │
+│  │  │                                                              │    │    │
+│  │  │ Batch Number: [BATCH-2026-001_______]                       │    │    │
+│  │  │ Expiry Date:  [2026-12-31         ] 📅                      │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  REFERENCE INFORMATION                                               │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ PO Number:     [PO-2026-089__________]                       │    │    │
+│  │  │ Notes:         [Initial stock for Q2______]                  │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  [Cancel]                                    [Add Stock] [Add & New] │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### **6.4 Stock Transfer Wizard**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🚚 STOCK TRANSFER - STEP 1 OF 3                               [X] Close    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ● Select Product  ○ Choose Warehouses  ○ Confirm                           │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  SELECT PRODUCT                                                     │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ Search product: [iPhone 15 Pro____________________] [🔍]     │    │    │
+│  │  │                                                              │    │    │
+│  │  │ ✅ iPhone 15 Pro (SKU: PHN-APP-001)                         │    │    │
+│  │  │    Current stock across warehouses: 45 units                │    │    │
+│  │  │                                                              │    │    │
+│  │  │ Quantity to transfer: [20      ] units                      │    │    │
+│  │  │                                                              │    │    │
+│  │  │ ┌──────────────┬─────────┬──────────┐                      │    │    │
+│  │  │ │ Warehouse    │ Stock   │ Transfer │                      │    │    │
+│  │  │ ├──────────────┼─────────┼──────────┤                      │    │    │
+│  │  │ │ Main WH      │ 25      │ ⬅️ 20   │                      │    │    │
+│  │  │ │ East WH      │ 20      │ ➡️      │                      │    │    │
+│  │  │ └──────────────┴─────────┴──────────┘                      │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  [Cancel]                                      [Next: Warehouses →] │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## **7. Mobile/Warehouse Scanner Design**
+
+### **7.1 Mobile Scan Screen**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📱 RECEIVING - PO-2026-089                                       [🔔] [≡]  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                      │    │
+│  │                      ┌─────────────────┐                            │    │
+│  │                      │                 │                            │    │
+│  │                      │   [CAMERA]      │                            │    │
+│  │                      │                 │                            │    │
+│  │                      │   Scan Barcode  │                            │    │
+│  │                      │                 │                            │    │
+│  │                      └─────────────────┘                            │    │
+│  │                                                                      │    │
+│  │  Or enter manually: [_______________]                               │    │
+│  │                                                                      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  RECENT SCANS                                                       │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ ✅ Dell XPS 15 - 1 unit                          [Undo]     │    │    │
+│  │  │ ✅ iPhone 15 Pro - 2 units                        [Undo]     │    │    │
+│  │  │ ✅ Samsung TV - 1 unit                            [Undo]     │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  │                                                                      │    │
+│  │  Progress: ████████░░░░░░░░░░░░ 8/50 units (16%)                    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  [Complete Receiving]                          [Pause] [Clear All]  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### **7.2 Mobile Picking Screen**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📱 PICKING - ORDER #ORD-2026-042                                 [🔔] [≡]  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  PICK LIST                                                          │    │
+│  │  ┌─────────────────────────────────────────────────────────────┐    │    │
+│  │  │ ☐ Item 1/5: Dell XPS 15 - 2 units                           │    │    │
+│  │  │   Location: A-01-B-03                                       │    │    │
+│  │  │   [Scan Location] → [Scan Product]                          │    │    │
+│  │  ├─────────────────────────────────────────────────────────────┤    │    │
+│  │  │ ☐ Item 2/5: iPhone 15 Pro - 1 unit                         │    │    │
+│  │  │   Location: B-02-C-11                                       │    │    │
+│  │  │   [Scan Location] → [Scan Product]                          │    │    │
+│  │  ├─────────────────────────────────────────────────────────────┤    │    │
+│  │  │ ☐ Item 3/5: Samsung TV - 1 unit                            │    │    │
+│  │  │   Location: C-03-A-07                                       │    │    │
+│  │  │   [Scan Location] → [Scan Product]                          │    │    │
+│  │  └─────────────────────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  [Skip Item]                    [Complete Order] [Batch Pick Mode]  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## **8. Micro-interactions & Animations**
+
+### **8.1 Loading States**
+
+```scss
+// Skeleton Loader
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    $gray-200 0%,
+    $gray-100 50%,
+    $gray-200 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  
+  &-text {
+    height: 1rem;
+    border-radius: $radius-base;
+  }
+  
+  &-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// Spinner
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid $gray-200;
+  border-top-color: $primary-500;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+```
+
+### **8.2 Success/Error Animations**
+
+```scss
+// Success checkmark animation
+.checkmark {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 2;
+  stroke: $success-500;
+  stroke-miterlimit: 10;
+  animation: scale 0.3s ease-in-out;
+  
+  .checkmark__circle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-width: 2;
+    stroke-miterlimit: 10;
+    stroke: $success-500;
+    fill: none;
+    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+  }
+  
+  .checkmark__check {
+    transform-origin: 50% 50%;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards;
+  }
+}
+
+@keyframes stroke {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes scale {
+  0%, 100% { transform: none; }
+  50% { transform: scale3d(1.1, 1.1, 1); }
+}
+```
+
+### **8.3 Haptic Feedback (Mobile)**
+
+```javascript
+// Haptic feedback patterns
+const hapticFeedback = {
+  light: () => window.navigator.vibrate?.(10),
+  medium: () => window.navigator.vibrate?.(30),
+  heavy: () => window.navigator.vibrate?.(50),
+  success: () => window.navigator.vibrate?.([10, 30, 10]),
+  error: () => window.navigator.vibrate?.([50, 100, 50]),
+  scan: () => window.navigator.vibrate?.(20)
+};
+
+// Usage
+button.onclick = () => {
+  hapticFeedback.medium();
+  // Action...
+};
+```
+
+---
+
+## **9. Accessibility (WCAG 2.1 AA)**
+
+### **9.1 Color Contrast**
+
+| Element | Foreground | Background | Ratio | Status |
+|---------|-----------|------------|-------|--------|
+| Primary text | #1F2937 | #FFFFFF | 12.6:1 | ✓ Pass |
+| Secondary text | #6B7280 | #FFFFFF | 7.8:1 | ✓ Pass |
+| Primary button | #FFFFFF | #1E88E5 | 4.5:1 | ✓ Pass |
+| Error text | #EF4444 | #FFFFFF | 4.8:1 | ✓ Pass |
+| Disabled text | #9CA3AF | #F3F4F6 | 2.3:1 | ✗ Fail → Fix |
+
+### **9.2 Keyboard Navigation**
+
+```html
+<!-- Focus indicators -->
+<button class="btn" tabindex="0">
+  Click me
+</button>
+
+<style>
+  :focus-visible {
+    outline: 2px solid $primary-500;
+    outline-offset: 2px;
+  }
+  
+  .btn:focus-visible {
+    outline: 2px solid $primary-500;
+    box-shadow: 0 0 0 4px rgba($primary-500, 0.2);
+  }
+</style>
+
+<!-- Skip navigation link -->
+<a href="#main-content" class="skip-link">
+  Skip to main content
+</a>
+
+<style>
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: $primary-500;
+    color: white;
+    padding: $spacing-2;
+    
+    &:focus {
+      top: 0;
+    }
+  }
+</style>
+```
+
+### **9.3 Screen Reader Support**
+
+```html
+<!-- ARIA Labels -->
+<button aria-label="Add new product">
+  <svg aria-hidden="true">...</svg>
+  <span class="sr-only">Add new product</span>
+</button>
+
+<!-- Live regions for dynamic content -->
+<div aria-live="polite" aria-atomic="true">
+  <!-- Toast notifications go here -->
+</div>
+
+<!-- Loading states -->
+<div role="status" aria-live="polite">
+  <span class="sr-only">Loading products...</span>
+  <div class="spinner"></div>
+</div>
+```
+
+### **9.4 Touch Targets (Mobile)**
+
+```scss
+// Minimum touch target size: 44x44px
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  padding: $spacing-3;
+}
+
+// Increase spacing between interactive elements
+.action-bar {
+  display: flex;
+  gap: $spacing-4; // 16px minimum
+  
+  .btn {
+    min-height: 44px;
+  }
+}
+```
+
+---
+
+## **10. Responsive Design Breakpoints**
+
+```scss
+// Breakpoint system
+$breakpoint-sm: 640px;   // Mobile
+$breakpoint-md: 768px;   // Tablet
+$breakpoint-lg: 1024px;  // Desktop
+$breakpoint-xl: 1280px;  // Large desktop
+$breakpoint-2xl: 1536px; // Extra large
+
+// Responsive mixins
+@mixin mobile {
+  @media (max-width: #{$breakpoint-sm}) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: #{$breakpoint-md}) and (max-width: #{$breakpoint-lg - 1px}) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: #{$breakpoint-lg}) {
+    @content;
+  }
+}
+
+// Responsive grid
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: $spacing-6;
+  
+  @include mobile {
+    grid-template-columns: 1fr;
+    gap: $spacing-4;
+  }
+}
+```
+
+---
+
+## **11. Design Deliverables Checklist**
+
+### **For Development Team**
+
+- [ ] **Figma/Adobe XD file** with all screens and components
+- [ ] **Design token file** (JSON/CSS variables)
+- [ ] **Component storybook** with all UI elements
+- [ ] **Icon library** (SVG sprite sheet)
+- [ ] **Typography scale** (CSS)
+- [ ] **Color palette** (CSS variables)
+- [ ] **Mobile app designs** for warehouse scanning
+- [ ] **Dark mode** color scheme
+- [ ] **Responsive layouts** for all screen sizes
+- [ ] **Animation specs** (duration, easing)
+- [ ] **Accessibility annotations** on key components
+
+### **For QA Team**
+
+- [ ] **Visual regression test cases**
+- [ ] **Accessibility test cases** (axe-core)
+- [ ] **Mobile touch test cases**
+- [ ] **Responsive breakpoint test matrix**
+- [ ] **Browser compatibility matrix**
+
+---
+
+## **12. Success Metrics & KPIs**
+
+| Metric | Target | Measurement Tool |
+|--------|--------|------------------|
+| **System Usability Scale (SUS)** | ≥ 80 | Post-task survey |
+| **Task Completion Rate** | ≥ 95% | Analytics |
+| **Time on Task** | -40% vs baseline | Performance monitoring |
+| **User Error Rate** | < 2% | Error tracking |
+| **Mobile Scanner Accuracy** | 99.5% | Scan logs |
+| **Accessibility Score** | 100% WCAG 2.1 AA | axe-core |
+| **First Contentful Paint** | < 1.5s | Lighthouse |
+| **Time to Interactive** | < 3s | Lighthouse |
+
+---
+
+## **13. Design Review & Approval**
+
+| Role | Name | Signature | Date |
+|------|------|-----------|------|
+| UX Lead | _______ | _______ | _______ |
+| Product Manager | _______ | _______ | _______ |
+| Tech Lead | _______ | _______ | _______ |
+| QA Lead | _______ | _______ | _______ |
+
+---
+
+## **14. Version History**
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 0.1 | 2026-06-03 | Initial draft | UX Designer |
+| 0.5 | 2026-06-04 | Added mobile designs, micro-interactions | UX Lead |
+| 1.0 | 2026-06-06 | Final version with accessibility | Design Director |
+
+---
+
+**This UI/UX Design Brief serves as the single source of truth for all visual and interaction design. Development must implement exactly as specified. Any deviations require design review and approval.**

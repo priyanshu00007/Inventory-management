@@ -1,0 +1,2548 @@
+# **Inventory Management System - Technical Requirements Document (TRD)**
+
+## **Document Information**
+
+| Document Version | Date | Author | Status |
+|-----------------|------|--------|---------|
+| 1.0 | 2026-06-05 | Technical Architect | Approved for Development |
+
+---
+
+## **1. Executive Summary**
+
+### **1.1 Technical Vision**
+Build a **scalable, event-driven, cloud-native inventory management system** using microservices architecture (or modular monolith initially) that handles 10M+ products, processes 1M+ daily transactions, and maintains 99.9% availability with sub-200ms response times.
+
+### **1.2 Architecture Principles**
+
+| Principle | Description |
+|-----------|-------------|
+| **API First** | All functionality exposed via REST/GraphQL APIs |
+| **Event-Driven** | Async processing for reports, notifications, integrations |
+| **Stateless** | Any instance can handle any request |
+| **Immutable Audit** | Transaction logs never modified, only appended |
+| **Fail Fast** | Validate inputs early, return clear errors |
+| **Observability** | Metrics, logs, traces for every operation |
+| **Security by Design** | Authentication, authorization, encryption at all layers |
+
+---
+
+## **2. System Architecture**
+
+### **2.1 High-Level Architecture Diagram**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Client Layer                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ Web App  │  │ Mobile   │  │ POS      │  │ Barcode  │       │
+│  │ React    │  │ React    │  │ Terminal │  │ Scanner  │       │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘       │
+└───────┼─────────────┼─────────────┼─────────────┼───────────────┘
+        │             │             │             │
+        └─────────────┴─────────────┴─────────────┘
+                        │ HTTPS/WSS
+        ┌───────────────▼───────────────────────────────────────┐
+        │                   CDN (CloudFront)                    │
+        └───────────────┬───────────────────────────────────────┘
+                        │
+        ┌───────────────▼───────────────────────────────────────┐
+        │            Load Balancer (AWS ALB/NGINX)              │
+        │         SSL Termination, Rate Limiting                │
+        └───────────────┬───────────────────────────────────────┘
+                        │
+        ┌───────────────▼───────────────────────────────────────┐
+        │              API Gateway (Kong/Express)               │
+        │    Authentication, Routing, Throttling, Analytics     │
+        └───────────────┬───────────────────────────────────────┘
+                        │
+        ┌───────────────┴───────────────────────────────────────┐
+        │                                                     │
+┌───────▼────────┐                                   ┌───────▼────────┐
+│  App Instance  │                                   │  App Instance  │
+│   (Node.js)    │                                   │   (Node.js)    │
+│  Port 3001     │                                   │  Port 3002     │
+└───────┬────────┘                                   └───────┬────────┘
+        │                                                     │
+        └───────────────┬─────────────────────────────────────┘
+                        │
+        ┌───────────────┼─────────────────────────────────────┐
+        │               │                                     │
+┌───────▼──────┐ ┌──────▼──────┐ ┌──────────────┐ ┌──────────▼────────┐
+│  PostgreSQL  │ │    Redis    │ │    RabbitMQ  │ │      S3/MinIO     │
+│  (Primary)   │ │   (Cache)   │ │   (Queue)    │ │   (File Storage)  │
+└──────────────┘ └─────────────┘ └──────────────┘ └───────────────────┘
+        │
+┌───────▼──────┐
+│  PostgreSQL  │
+│(Read Replica)│
+└──────────────┘
+```
+
+### **2.2 Deployment Architecture (AWS)**
+
+```yaml
+Environment: Production
+
+Networking:
+  VPC: 10.0.0.0/16
+  Public Subnets: 2 AZs (for load balancers)
+  Private Subnets: 2 AZs (for applications)
+  Isolated Subnets: 2 AZs (for databases)
+
+Compute:
+  ECS Fargate / EKS:
+    - API Service: 3-10 tasks (CPU: 2 vCPU, Memory: 4GB)
+    - Worker Service: 2-5 tasks (CPU: 1 vCPU, Memory: 2GB)
+    - Cron Service: 1 task (CPU: 0.5 vCPU, Memory: 1GB)
+
+Database:
+  RDS PostgreSQL 15:
+    - Primary: db.r5.large (2 vCPU, 16GB RAM, 200GB SSD)
+    - Standby: db.r5.large (Multi-AZ)
+    - Read Replica: db.r5.large (Reporting)
+    - Read Replica 2: db.r5.large (Analytics)
+
+Cache:
+  ElastiCache Redis:
+    - Primary: cache.t3.medium (3.22GB)
+    - Replica: cache.t3.medium (failover)
+    - Configuration: Cluster mode disabled
+
+Queue:
+  Amazon MQ / SQS:
+    - Standard Queue: High throughput
+    - FIFO Queue: Order-critical operations
+  
+Storage:
+  S3 Buckets:
+    - static-assets: CDN + CloudFront
+    - product-images: With versioning
+    - backups: Encrypted, lifecycle rules
+    - logs: Centralized logging
+
+CDN:
+  CloudFront:
+    - TTL: 86400 seconds (cache static)
+    - Price class: Use only North America/Europe
+```
+
+---
+
+## **3. Technology Stack Details**
+
+### **3.1 Core Technologies**
+
+| Layer | Technology | Version | Justification |
+|-------|------------|---------|---------------|
+| **Runtime** | Node.js | 20.x LTS | High performance, massive ecosystem, TypeScript support |
+| **Language** | TypeScript | 5.0+ | Type safety, better DX, self-documenting code |
+| **Framework** | Express.js | 4.18+ | Lightweight, flexible, middleware ecosystem |
+| **Alternative** | Fastify (optional) | 4.0+ | 2x faster than Express, better JSON schema validation |
+| **Database** | PostgreSQL | 15+ | ACID compliant, JSON support, robust indexing |
+| **ORM** | Prisma | 5.0+ | Type-safe queries, auto-migrations, excellent dev experience |
+| **Cache** | Redis | 7.0+ | Sub-millisecond latency, versatile data structures |
+| **Queue** | BullMQ | 4.0+ | Redis-based, reliable, supports delayed jobs |
+| **Validation** | Zod | 3.22+ | TypeScript-first, runtime validation |
+| **Logging** | Winston | 3.11+ | Structured logging, multiple transports |
+| **Metrics** | Prometheus | 2.45+ | OpenMetrics standard, Grafana integration |
+| **Tracing** | Jaeger | 1.47+ | OpenTelemetry compatible |
+| **API Doc** | Swagger/OpenAPI | 3.0+ | Industry standard, client generation |
+
+### **3.2 Development Tools**
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **Package Manager** | pnpm/npm | Dependency management |
+| **Linter** | ESLint | Code quality |
+| **Formatter** | Prettier | Consistent formatting |
+| **Testing** | Jest + Supertest | Unit & integration tests |
+| **E2E Testing** | Playwright | End-to-end testing |
+| **Git Hooks** | Husky + lint-staged | Pre-commit checks |
+| **Container** | Docker | Development consistency |
+| **Orchestration** | Docker Compose | Local multi-service setup |
+
+---
+
+## **4. Detailed Technical Specifications**
+
+### **4.1 Database Schema (Complete)**
+
+**`prisma/schema.prisma`** (Full Production Version)
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= ENUMS =============
+enum Role {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum Permission {
+  PRODUCT_CREATE
+  PRODUCT_READ
+  PRODUCT_UPDATE
+  PRODUCT_DELETE
+  STOCK_ADD
+  STOCK_REMOVE
+  STOCK_TRANSFER
+  REPORT_VIEW
+  REPORT_EXPORT
+  USER_MANAGE
+  WAREHOUSE_MANAGE
+  SETTINGS_MANAGE
+}
+
+enum TransactionType {
+  PURCHASE
+  SALE
+  RETURN
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  WRITE_OFF
+  COUNT_ADJUSTMENT
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  DISCONTINUED
+  ON_ORDER
+}
+
+enum NotificationType {
+  LOW_STOCK
+  EXPIRY
+  TRANSFER_INITIATED
+  TRANSFER_COMPLETED
+  STOCK_ADJUSTMENT
+  REPORT_READY
+  SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+  WEBHOOK
+}
+
+// ============= CORE TABLES =============
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  password     String
+  firstName    String
+  lastName     String
+  avatar       String?
+  role         Role           @default(VIEWER)
+  permissions  Permission[]
+  isActive     Boolean        @default(true)
+  emailVerified Boolean       @default(false)
+  mfaEnabled   Boolean        @default(false)
+  mfaSecret    String?
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+  refreshToken String?
+  preferences  Json           @default("{}")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Relations
+  transactions Transaction[]
+  stocks       Stock[]
+  auditLogs    AuditLog[]
+  notifications UserNotification[]
+  sessions     Session[]
+  
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  fingerprint  String?  // Browser fingerprint for security
+  ipAddress    String
+  userAgent    String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  description   String?  @db.Text
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  brand         String?
+  supplierId    String?
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  costPrice     Decimal  @db.Decimal(10, 2)
+  weight        Decimal? @db.Decimal(8, 3) // in kg
+  length        Decimal? @db.Decimal(8, 2) // in cm
+  width         Decimal? @db.Decimal(8, 2)
+  height        Decimal? @db.Decimal(8, 2)
+  reorderLevel  Int      @default(10)
+  reorderQty    Int      @default(0)
+  taxRate       Decimal  @default(0) @db.Decimal(5, 2)
+  isActive      Boolean  @default(true)
+  isPerishable  Boolean  @default(false)
+  shelfLifeDays Int?     // Days until expiry
+  barcode       String?  @unique
+  qrCode        String?  @unique
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  variants     ProductVariant[]
+  images       ProductImage[]
+  stocks       Stock[]
+  transactions Transaction[]
+  
+  @@fulltext([name, description, sku])
+  @@index([sku])
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  level       Int        @default(0)
+  path        String     // Materialized path for fast queries (e.g., "1/2/3")
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  products    Product[]
+  
+  @@index([parentId])
+  @@index([level])
+  @@index([path])
+  @@map("categories")
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku        String   @unique
+  attributes Json     // { color: "Red", size: "XL", material: "Cotton" }
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  costPrice  Decimal  @db.Decimal(10, 2)
+  stock      Stock?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([productId])
+  @@index([sku])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url        String
+  altText    String?
+  isPrimary  Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  
+  @@index([productId])
+  @@map("product_images")
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  contactName String
+  email       String
+  phone       String
+  address     String   @db.Text
+  taxId       String?
+  paymentTerms String
+  leadTime    Int      // Average delivery days
+  rating      Float    @default(0) // 0-5 stars
+  isActive    Boolean  @default(true)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  products    Product[]
+  purchaseOrders PurchaseOrder[]
+  
+  @@index([code])
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+model Warehouse {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  code        String   @unique
+  type        String   @default("standard") // standard, cold, hazardous
+  location    String
+  address     String   @db.Text
+  phone       String?
+  email       String?
+  managerName String
+  isActive    Boolean  @default(true)
+  capacity    Int?     // Max SKUs or volume
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  stocks      Stock[]
+  locations   Location[]
+  transactions Transaction[]
+  
+  @@index([code])
+  @@index([isActive])
+  @@map("warehouses")
+}
+
+model Location {
+  id          String    @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  code        String    // e.g., "A-01-B-03"
+  zone        String    // receiving, storage, picking, shipping
+  aisle       String?
+  rack        String?
+  shelf       String?
+  bin         String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  stocks      Stock[]
+  
+  @@unique([warehouseId, code])
+  @@index([warehouseId])
+  @@index([code])
+  @@map("locations")
+}
+
+model Stock {
+  id           String        @id @default(cuid())
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  locationId   String?
+  location     Location?     @relation(fields: [locationId], references: [id])
+  quantity     Int           @default(0)
+  reservedQty  Int           @default(0)
+  availableQty Int           @default(0)  // Computed: quantity - reservedQty
+  batchNumber  String?
+  expiryDate   DateTime?
+  receivedDate DateTime?     @default(now())
+  lastCountedAt DateTime?
+  lastCountedBy String?
+  updatedBy    String
+  user         User          @relation(fields: [updatedBy], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  transactions Transaction[]
+  
+  @@unique([productId, warehouseId, variantId, batchNumber])
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([locationId])
+  @@index([expiryDate])
+  @@index([batchNumber])
+  @@index([availableQty])
+  @@map("stocks")
+}
+
+model Transaction {
+  id            String         @id @default(cuid())
+  type          TransactionType
+  quantity      Int
+  previousQty   Int
+  newQty        Int
+  reference     String?        // Order ID, PO number, Invoice #
+  notes         String?        @db.Text
+  productId     String
+  product       Product        @relation(fields: [productId], references: [id])
+  variantId     String?
+  variant       ProductVariant? @relation(fields: [variantId], references: [id])
+  warehouseId   String
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id])
+  locationId    String?
+  location      Location?      @relation(fields: [locationId], references: [id])
+  batchNumber   String?
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  metadata      Json           @default("{}") // Store additional context
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([reference])
+  @@index([batchNumber])
+  @@map("transactions")
+}
+
+model PurchaseOrder {
+  id           String         @id @default(cuid())
+  poNumber     String         @unique
+  supplierId   String
+  supplier     Supplier       @relation(fields: [supplierId], references: [id])
+  orderDate    DateTime       @default(now())
+  expectedDate DateTime
+  receivedDate DateTime?
+  status       String         @default("draft") // draft, sent, confirmed, shipped, received, cancelled
+  totalAmount  Decimal        @db.Decimal(12, 2)
+  notes        String?        @db.Text
+  createdBy    String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  items        PurchaseOrderItem[]
+  
+  @@index([poNumber])
+  @@index([supplierId])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id             String         @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product        @relation(fields: [productId], references: [id])
+  quantity       Int
+  receivedQty    Int            @default(0)
+  unitPrice      Decimal        @db.Decimal(10, 2)
+  totalPrice     Decimal        @db.Decimal(12, 2)
+  
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model StockTransfer {
+  id              String         @id @default(cuid())
+  transferNumber  String         @unique
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  quantity        Int
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  status          String         @default("pending") // pending, approved, in_transit, completed, cancelled
+  requestedBy     String
+  approvedBy      String?
+  requestDate     DateTime       @default(now())
+  shipDate        DateTime?
+  receiveDate     DateTime?
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  @@index([transferNumber])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@index([status])
+  @@map("stock_transfers")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT, etc.
+  entity      String   // Product, Stock, User, Warehouse
+  entityId    String
+  oldData     Json?
+  newData     Json?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        NotificationType
+  title       String
+  message     String   @db.Text
+  priority    Int      @default(0) // 0=low, 1=medium, 2=high, 3=critical
+  metadata    Json     @default("{}")
+  isBroadcast Boolean  @default(false)
+  sentAt      DateTime @default(now())
+  expiresAt   DateTime?
+  
+  users       UserNotification[]
+  
+  @@index([type])
+  @@index([sentAt])
+  @@index([expiresAt])
+  @@map("notifications")
+}
+
+model UserNotification {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  isRead         Boolean  @default(false)
+  readAt         DateTime?
+  deliveredAt    DateTime @default(now())
+  channel        NotificationChannel
+  
+  @@unique([userId, notificationId])
+  @@index([userId, isRead])
+  @@map("user_notifications")
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // stock_valuation, movement, low_stock, etc.
+  parameters  Json     // Date range, filters, etc.
+  format      String   // PDF, Excel, CSV, JSON
+  status      String   @default("pending") // pending, processing, completed, failed
+  fileUrl     String?
+  fileSize    Int?
+  generatedBy String
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  @@index([status])
+  @@index([generatedBy])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  key         String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions Permission[]
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  @@index([key])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String
+  url         String   @db.Text
+  secret      String   // For signature verification
+  events      String[] // ["stock.updated", "product.created", etc.]
+  isActive    Boolean  @default(true)
+  retryCount  Int      @default(3)
+  timeout     Int      @default(5000) // milliseconds
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  deliveries  WebhookDelivery[]
+  
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id          String   @id @default(cuid())
+  webhookId   String
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event       String
+  payload     Json
+  response    String?  @db.Text
+  statusCode  Int?
+  success     Boolean
+  attempt     Int      @default(1)
+  error       String?  @db.Text
+  duration    Int?     // milliseconds
+  createdAt   DateTime @default(now())
+  
+  @@index([webhookId])
+  @@index([success])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
+}
+
+// ============= VIEWS (Raw SQL for performance) =============
+// Stock Summary View (Materialized)
+// CREATE MATERIALIZED VIEW stock_summary AS
+// SELECT 
+//   p.id as product_id,
+//   p.sku,
+//   p.name,
+//   SUM(s.quantity) as total_quantity,
+//   SUM(s.reserved_qty) as total_reserved,
+//   SUM(s.available_qty) as total_available,
+//   COUNT(DISTINCT s.warehouse_id) as warehouse_count
+// FROM products p
+// LEFT JOIN stocks s ON p.id = s.product_id
+// GROUP BY p.id, p.sku, p.name;
+
+// Refresh every 5 minutes via cron job
+```
+
+### **4.2 API Specifications (OpenAPI 3.0)**
+
+**`openapi.yaml`** (Abbreviated - Full version would be 2000+ lines)
+
+```yaml
+openapi: 3.0.0
+info:
+  title: Inventory Management System API
+  version: 1.0.0
+  description: RESTful API for inventory management
+servers:
+  - url: https://api.inventory.com/v1
+    description: Production server
+  - url: https://staging-api.inventory.com/v1
+    description: Staging server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "prod_123"
+        sku:
+          type: string
+          example: "LAP-DELL-XPS-001"
+        name:
+          type: string
+          example: "Dell XPS 15"
+        description:
+          type: string
+        categoryId:
+          type: string
+        brand:
+          type: string
+        unitPrice:
+          type: number
+          format: float
+          example: 1299.99
+        costPrice:
+          type: number
+          format: float
+          example: 950.00
+        reorderLevel:
+          type: integer
+          example: 10
+        isActive:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    StockMovement:
+      type: object
+      required:
+        - productId
+        - quantity
+        - type
+      properties:
+        productId:
+          type: string
+        variantId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [PURCHASE, SALE, RETURN, ADJUSTMENT]
+        warehouseId:
+          type: string
+        locationId:
+          type: string
+        batchNumber:
+          type: string
+        reference:
+          type: string
+        notes:
+          type: string
+
+  parameters:
+    pageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    limitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+paths:
+  /products:
+    post:
+      summary: Create a new product
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Product'
+                  message:
+                    type: string
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+        '409':
+          description: Product with SKU already exists
+
+    get:
+      summary: List products with pagination and filters
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Products retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+
+  /stock/add:
+    post:
+      summary: Add stock to inventory (purchase, return)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockMovement'
+      responses:
+        '200':
+          description: Stock added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      transactionId:
+                        type: string
+                      previousQuantity:
+                        type: integer
+                      newQuantity:
+                        type: integer
+                  message:
+                    type: string
+
+  /reports/low-stock:
+    get:
+      summary: Get low stock products
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: warehouseId
+          in: query
+          schema:
+            type: string
+        - name: threshold
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: Low stock report generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productId:
+                          type: string
+                        name:
+                          type: string
+                        sku:
+                          type: string
+                        currentStock:
+                          type: integer
+                        reorderLevel:
+                          type: integer
+                        warehouse:
+                          type: string
+```
+
+### **4.3 Core Service Implementation**
+
+**`src/services/stock.service.ts`** (Complete Business Logic)
+
+```typescript
+import { PrismaClient, TransactionType, StockStatus } from '@prisma/client';
+import { DatabaseError } from '../utils/ApiError';
+import { logger } from '../config/logger';
+import { EventEmitter } from 'events';
+import { publishToQueue } from '../queues/producer';
+
+const prisma = new PrismaClient();
+const eventEmitter = new EventEmitter();
+
+interface AddStockInput {
+  productId: string;
+  quantity: number;
+  warehouseId: string;
+  locationId?: string;
+  batchNumber?: string;
+  expiryDate?: Date;
+  reference?: string;
+  notes?: string;
+  userId: string;
+  ipAddress?: string;
+}
+
+interface RemoveStockInput {
+  productId: string;
+  quantity: number;
+  warehouseId: string;
+  type: TransactionType;
+  reference?: string;
+  notes?: string;
+  userId: string;
+  ipAddress?: string;
+}
+
+export class StockService {
+  
+  /**
+   * Add stock to inventory with transaction logging
+   */
+  async addStock(input: AddStockInput) {
+    const {
+      productId,
+      quantity,
+      warehouseId,
+      locationId,
+      batchNumber,
+      expiryDate,
+      reference,
+      notes,
+      userId,
+      ipAddress
+    } = input;
+
+    if (quantity <= 0) {
+      throw new Error('Quantity must be greater than 0');
+    }
+
+    // Use database transaction for consistency
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Get or create stock record
+      let stock = await tx.stock.findUnique({
+        where: {
+          productId_warehouseId_variantId_batchNumber: {
+            productId,
+            warehouseId,
+            variantId: '', // No variant for now
+            batchNumber: batchNumber || ''
+          }
+        }
+      });
+
+      const previousQty = stock?.quantity || 0;
+      const newQty = previousQty + quantity;
+
+      if (stock) {
+        // Update existing stock
+        stock = await tx.stock.update({
+          where: { id: stock.id },
+          data: {
+            quantity: newQty,
+            availableQty: newQty - (stock.reservedQty || 0),
+            updatedBy: userId,
+            ...(locationId && { locationId }),
+            ...(batchNumber && { batchNumber }),
+            ...(expiryDate && { expiryDate })
+          }
+        });
+      } else {
+        // Create new stock record
+        stock = await tx.stock.create({
+          data: {
+            productId,
+            warehouseId,
+            locationId,
+            quantity: newQty,
+            availableQty: newQty,
+            updatedBy: userId,
+            batchNumber,
+            expiryDate,
+            receivedDate: new Date()
+          }
+        });
+      }
+
+      // 2. Create transaction log (immutable)
+      const transaction = await tx.transaction.create({
+        data: {
+          type: TransactionType.PURCHASE,
+          quantity,
+          previousQty,
+          newQty,
+          reference,
+          notes,
+          productId,
+          warehouseId,
+          locationId,
+          batchNumber,
+          userId,
+          ipAddress,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            userAgent: 'API'
+          }
+        }
+      });
+
+      // 3. Update product last updated timestamp
+      await tx.product.update({
+        where: { id: productId },
+        data: { updatedAt: new Date() }
+      });
+
+      // 4. Check low stock and trigger alert
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { reorderLevel: true, name: true, sku: true }
+      });
+
+      if (product && newQty <= product.reorderLevel) {
+        await this.triggerLowStockAlert({
+          productId,
+          productName: product.name,
+          sku: product.sku,
+          currentStock: newQty,
+          reorderLevel: product.reorderLevel,
+          warehouseId
+        });
+      }
+
+      return { stock, transaction };
+    });
+
+    // 5. Emit event for real-time updates
+    eventEmitter.emit('stock.updated', {
+      productId,
+      warehouseId,
+      oldQuantity: result.stock.quantity - quantity,
+      newQuantity: result.stock.quantity,
+      type: 'ADD'
+    });
+
+    // 6. Publish to queue for async processing (webhooks, notifications)
+    await publishToQueue('stock-events', {
+      event: 'stock.added',
+      data: {
+        productId,
+        quantity,
+        warehouseId,
+        transactionId: result.transaction.id,
+        timestamp: new Date()
+      }
+    });
+
+    logger.info(`Stock added: Product ${productId}, Quantity ${quantity}, User ${userId}`);
+    
+    return {
+      transactionId: result.transaction.id,
+      previousQuantity: result.transaction.previousQty,
+      newQuantity: result.transaction.newQty,
+      currentStock: result.stock.quantity
+    };
+  }
+
+  /**
+   * Remove stock from inventory (sales, damages, adjustments)
+   */
+  async removeStock(input: RemoveStockInput) {
+    const {
+      productId,
+      quantity,
+      warehouseId,
+      type,
+      reference,
+      notes,
+      userId,
+      ipAddress
+    } = input;
+
+    if (quantity <= 0) {
+      throw new Error('Quantity must be greater than 0');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Get current stock with lock (FOR UPDATE)
+      const stock = await tx.$queryRaw`
+        SELECT * FROM stocks 
+        WHERE product_id = ${productId} 
+        AND warehouse_id = ${warehouseId}
+        FOR UPDATE
+      `;
+
+      const currentStock = await tx.stock.findUnique({
+        where: {
+          productId_warehouseId_variantId_batchNumber: {
+            productId,
+            warehouseId,
+            variantId: '',
+            batchNumber: ''
+          }
+        }
+      });
+
+      if (!currentStock) {
+        throw new Error('Product not found in warehouse');
+      }
+
+      if (currentStock.quantity < quantity) {
+        throw new Error(`Insufficient stock. Available: ${currentStock.quantity}, Requested: ${quantity}`);
+      }
+
+      const previousQty = currentStock.quantity;
+      const newQty = previousQty - quantity;
+
+      // 2. Update stock
+      const updatedStock = await tx.stock.update({
+        where: { id: currentStock.id },
+        data: {
+          quantity: newQty,
+          availableQty: newQty - (currentStock.reservedQty || 0),
+          updatedBy: userId
+        }
+      });
+
+      // 3. Create transaction log
+      const transaction = await tx.transaction.create({
+        data: {
+          type,
+          quantity: -quantity, // Negative for removal
+          previousQty,
+          newQty,
+          reference,
+          notes,
+          productId,
+          warehouseId,
+          userId,
+          ipAddress,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            removalType: type
+          }
+        }
+      });
+
+      return { stock: updatedStock, transaction };
+    });
+
+    // Emit events
+    eventEmitter.emit('stock.updated', {
+      productId,
+      warehouseId,
+      oldQuantity: result.stock.quantity + quantity,
+      newQuantity: result.stock.quantity,
+      type: 'REMOVE'
+    });
+
+    logger.info(`Stock removed: Product ${productId}, Quantity ${quantity}, Type ${type}, User ${userId}`);
+    
+    return {
+      transactionId: result.transaction.id,
+      previousQuantity: result.transaction.previousQty,
+      newQuantity: result.transaction.newQty,
+      currentStock: result.stock.quantity
+    };
+  }
+
+  /**
+   * Transfer stock between warehouses
+   */
+  async transferStock(input: {
+    productId: string;
+    quantity: number;
+    fromWarehouseId: string;
+    toWarehouseId: string;
+    userId: string;
+    notes?: string;
+  }) {
+    const { productId, quantity, fromWarehouseId, toWarehouseId, userId, notes } = input;
+
+    if (fromWarehouseId === toWarehouseId) {
+      throw new Error('Source and destination warehouses cannot be the same');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Remove from source warehouse
+      const sourceStock = await tx.stock.findUnique({
+        where: {
+          productId_warehouseId_variantId_batchNumber: {
+            productId,
+            warehouseId: fromWarehouseId,
+            variantId: '',
+            batchNumber: ''
+          }
+        }
+      });
+
+      if (!sourceStock || sourceStock.quantity < quantity) {
+        throw new Error(`Insufficient stock in source warehouse`);
+      }
+
+      // Remove from source
+      await tx.stock.update({
+        where: { id: sourceStock.id },
+        data: {
+          quantity: sourceStock.quantity - quantity,
+          availableQty: sourceStock.quantity - quantity - (sourceStock.reservedQty || 0),
+          updatedBy: userId
+        }
+      });
+
+      // Create transfer-out transaction
+      await tx.transaction.create({
+        data: {
+          type: TransactionType.TRANSFER_OUT,
+          quantity: -quantity,
+          previousQty: sourceStock.quantity,
+          newQty: sourceStock.quantity - quantity,
+          reference: `TRANSFER_${Date.now()}`,
+          notes: `Transfer to ${toWarehouseId}. ${notes || ''}`,
+          productId,
+          warehouseId: fromWarehouseId,
+          userId
+        }
+      });
+
+      // 2. Add to destination warehouse
+      let destStock = await tx.stock.findUnique({
+        where: {
+          productId_warehouseId_variantId_batchNumber: {
+            productId,
+            warehouseId: toWarehouseId,
+            variantId: '',
+            batchNumber: ''
+          }
+        }
+      });
+
+      const destPreviousQty = destStock?.quantity || 0;
+      const destNewQty = destPreviousQty + quantity;
+
+      if (destStock) {
+        await tx.stock.update({
+          where: { id: destStock.id },
+          data: {
+            quantity: destNewQty,
+            availableQty: destNewQty - (destStock.reservedQty || 0),
+            updatedBy: userId
+          }
+        });
+      } else {
+        await tx.stock.create({
+          data: {
+            productId,
+            warehouseId: toWarehouseId,
+            quantity: destNewQty,
+            availableQty: destNewQty,
+            updatedBy: userId
+          }
+        });
+      }
+
+      // Create transfer-in transaction
+      await tx.transaction.create({
+        data: {
+          type: TransactionType.TRANSFER_IN,
+          quantity,
+          previousQty: destPreviousQty,
+          newQty: destNewQty,
+          reference: `TRANSFER_${Date.now()}`,
+          notes: `Transfer from ${fromWarehouseId}. ${notes || ''}`,
+          productId,
+          warehouseId: toWarehouseId,
+          userId
+        }
+      });
+
+      return { success: true };
+    });
+
+    logger.info(`Stock transferred: Product ${productId}, Quantity ${quantity}, From ${fromWarehouseId} To ${toWarehouseId}`);
+    
+    return result;
+  }
+
+  /**
+   * Get current stock level with caching
+   */
+  async getStockLevel(productId: string, warehouseId?: string) {
+    // Try cache first
+    const cacheKey = `stock:${productId}:${warehouseId || 'all'}`;
+    // const cached = await redisClient.get(cacheKey);
+    // if (cached) return JSON.parse(cached);
+
+    const where: any = { productId };
+    if (warehouseId) {
+      where.warehouseId = warehouseId;
+    }
+
+    const stocks = await prisma.stock.findMany({
+      where,
+      include: {
+        warehouse: {
+          select: { name: true, code: true }
+        },
+        location: true
+      }
+    });
+
+    const result = {
+      productId,
+      totalQuantity: stocks.reduce((sum, s) => sum + s.quantity, 0),
+      totalReserved: stocks.reduce((sum, s) => sum + (s.reservedQty || 0), 0),
+      totalAvailable: stocks.reduce((sum, s) => sum + (s.availableQty || 0), 0),
+      warehouses: stocks.map(s => ({
+        warehouseId: s.warehouseId,
+        warehouseName: s.warehouse.name,
+        quantity: s.quantity,
+        reserved: s.reservedQty,
+        available: s.availableQty,
+        location: s.location?.code
+      }))
+    };
+
+    // Cache for 5 minutes
+    // await redisClient.setex(cacheKey, 300, JSON.stringify(result));
+
+    return result;
+  }
+
+  /**
+   * Trigger low stock alert
+   */
+  private async triggerLowStockAlert(data: any) {
+    await publishToQueue('alerts', {
+      type: 'LOW_STOCK',
+      priority: 'HIGH',
+      data,
+      timestamp: new Date()
+    });
+  }
+}
+```
+
+### **4.4 Middleware Implementations**
+
+**`src/middlewares/rateLimit.middleware.ts`**
+
+```typescript
+import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import Redis from 'ioredis';
+import { config } from '../config/env';
+
+const redisClient = new Redis({
+  host: config.redis.host,
+  port: config.redis.port,
+  password: config.redis.password
+});
+
+// General API rate limiter
+export const apiLimiter = rateLimit({
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:general:'
+  }),
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+  }
+});
+
+// Strict limiter for auth endpoints
+export const authLimiter = rateLimit({
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:auth:'
+  }),
+  windowMs: 15 * 60 * 1000,
+  max: 10, // 10 login attempts per 15 minutes
+  skipSuccessfulRequests: true,
+  message: 'Too many login attempts, please try again later.'
+});
+
+// Per-user limiter for write operations
+export const writeLimiter = rateLimit({
+  store: new RedisStore({
+    client: redisClient,
+    prefix: 'rl:write:'
+  }),
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 write operations per minute
+  keyGenerator: (req) => {
+    return (req as any).user?.id || req.ip || 'unknown';
+  }
+});
+```
+
+**`src/middlewares/cache.middleware.ts`**
+
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import Redis from 'ioredis';
+import { config } from '../config/env';
+
+const redisClient = new Redis({
+  host: config.redis.host,
+  port: config.redis.port
+});
+
+export const cacheMiddleware = (duration: number = 300) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    // Only cache GET requests
+    if (req.method !== 'GET') {
+      return next();
+    }
+
+    const key = `cache:${req.originalUrl}`;
+    
+    try {
+      const cachedData = await redisClient.get(key);
+      
+      if (cachedData) {
+        const data = JSON.parse(cachedData);
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(data);
+      }
+      
+      // Store original send function
+      const originalSend = res.json;
+      
+      // Override send function
+      res.json = function(body) {
+        // Cache the response
+        if (res.statusCode === 200) {
+          redisClient.setex(key, duration, JSON.stringify(body));
+          res.setHeader('X-Cache', 'MISS');
+        }
+        
+        return originalSend.call(this, body);
+      };
+      
+      next();
+    } catch (error) {
+      // Redis error - continue without cache
+      console.error('Cache error:', error);
+      next();
+    }
+  };
+};
+
+// Invalidate cache helper
+export const invalidateCache = async (pattern: string) => {
+  const keys = await redisClient.keys(`cache:${pattern}`);
+  if (keys.length > 0) {
+    await redisClient.del(...keys);
+  }
+};
+```
+
+### **4.5 Queue Implementation (BullMQ)**
+
+**`src/queues/setup.ts`**
+
+```typescript
+import { Queue, Worker } from 'bullmq';
+import Redis from 'ioredis';
+import { config } from '../config/env';
+import { sendEmail } from '../services/email.service';
+import { sendWebhook } from '../services/webhook.service';
+import { generateReport } from '../services/report.service';
+
+const connection = new Redis({
+  host: config.redis.host,
+  port: config.redis.port,
+  maxRetriesPerRequest: null
+});
+
+// Define queues
+export const emailQueue = new Queue('email', { connection });
+export const webhookQueue = new Queue('webhook', { connection });
+export const reportQueue = new Queue('report', { connection });
+export const stockAlertQueue = new Queue('stock-alert', { connection });
+
+// Worker for email queue
+new Worker('email', async (job) => {
+  const { to, subject, template, data } = job.data;
+  await sendEmail(to, subject, template, data);
+}, { connection });
+
+// Worker for webhook queue
+new Worker('webhook', async (job) => {
+  const { url, payload, secret } = job.data;
+  await sendWebhook(url, payload, secret);
+}, { 
+  connection,
+  concurrency: 10 // Process 10 webhooks concurrently
+});
+
+// Worker for report generation
+new Worker('report', async (job) => {
+  const { reportId, type, parameters, userId } = job.data;
+  await generateReport(reportId, type, parameters, userId);
+}, { connection });
+
+// Producer function
+export const publishToQueue = async (queueName: string, data: any, delay?: number) => {
+  let queue: Queue;
+  
+  switch(queueName) {
+    case 'email':
+      queue = emailQueue;
+      break;
+    case 'webhook':
+      queue = webhookQueue;
+      break;
+    case 'report':
+      queue = reportQueue;
+      break;
+    case 'alerts':
+      queue = stockAlertQueue;
+      break;
+    default:
+      throw new Error(`Unknown queue: ${queueName}`);
+  }
+  
+  await queue.add(queueName, data, {
+    delay,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 1000
+    },
+    removeOnComplete: true,
+    removeOnFail: false
+  });
+};
+```
+
+---
+
+## **5. Security Implementation**
+
+### **5.1 Authentication Flow**
+
+```typescript
+// JWT Strategy
+import jwt from 'jsonwebtoken';
+import { config } from '../config/env';
+
+export const generateTokens = (userId: string, email: string, role: string) => {
+  const accessToken = jwt.sign(
+    { id: userId, email, role, type: 'access' },
+    config.jwt.secret,
+    { expiresIn: '15m' }
+  );
+  
+  const refreshToken = jwt.sign(
+    { id: userId, email, role, type: 'refresh' },
+    config.jwt.refreshSecret,
+    { expiresIn: '7d' }
+  );
+  
+  return { accessToken, refreshToken };
+};
+
+export const verifyToken = (token: string, isRefresh = false) => {
+  const secret = isRefresh ? config.jwt.refreshSecret : config.jwt.secret;
+  return jwt.verify(token, secret);
+};
+```
+
+### **5.2 Encryption Service**
+
+```typescript
+import crypto from 'crypto';
+
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+const SALT_LENGTH = 64;
+const TAG_LENGTH = 16;
+
+export class EncryptionService {
+  private static encryptionKey: Buffer;
+  
+  static initialize(masterKey: string) {
+    this.encryptionKey = crypto.scryptSync(masterKey, 'salt', 32);
+  }
+  
+  static encrypt(text: string): string {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(ALGORITHM, this.encryptionKey, iv);
+    
+    const encrypted = Buffer.concat([
+      cipher.update(text, 'utf8'),
+      cipher.final()
+    ]);
+    
+    const tag = cipher.getAuthTag();
+    
+    // Combine: iv + tag + encrypted data
+    const result = Buffer.concat([iv, tag, encrypted]);
+    return result.toString('base64');
+  }
+  
+  static decrypt(encryptedText: string): string {
+    const buffer = Buffer.from(encryptedText, 'base64');
+    
+    const iv = buffer.subarray(0, IV_LENGTH);
+    const tag = buffer.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+    const encrypted = buffer.subarray(IV_LENGTH + TAG_LENGTH);
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, this.encryptionKey, iv);
+    decipher.setAuthTag(tag);
+    
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final()
+    ]);
+    
+    return decrypted.toString('utf8');
+  }
+}
+```
+
+### **5.3 SQL Injection Prevention**
+
+```typescript
+// Always use Prisma (parameterized queries)
+// NEVER do raw string concatenation
+
+// BAD (vulnerable):
+// await prisma.$executeRaw`SELECT * FROM users WHERE email = '${userInput}'`;
+
+// GOOD (safe):
+await prisma.user.findUnique({
+  where: { email: userInput }
+});
+
+// For raw queries when necessary, use parameterized:
+await prisma.$queryRaw`
+  SELECT * FROM users 
+  WHERE email = ${userInput}
+`;
+```
+
+---
+
+## **6. Performance Optimization**
+
+### **6.1 Database Indexing Strategy**
+
+```sql
+-- Composite indexes for common query patterns
+CREATE INDEX CONCURRENTLY idx_stocks_availability 
+ON stocks(warehouse_id, product_id, available_qty) 
+WHERE available_qty > 0;
+
+CREATE INDEX CONCURRENTLY idx_transactions_date_type 
+ON transactions(created_at, type) 
+WHERE type IN ('PURCHASE', 'SALE');
+
+CREATE INDEX CONCURRENTLY idx_products_search 
+ON products USING GIN(to_tsvector('english', name || ' ' || description));
+
+-- Partial indexes for active records
+CREATE INDEX CONCURRENTLY idx_products_active 
+ON products(id, sku, name) 
+WHERE is_active = true;
+
+-- Covering indexes for reports
+CREATE INDEX CONCURRENTLY idx_stocks_summary 
+ON stocks(product_id, warehouse_id, quantity) 
+INCLUDE (available_qty, reserved_qty);
+```
+
+### **6.2 Query Optimization Patterns**
+
+```typescript
+// Pagination using cursor (more efficient than OFFSET)
+async function getProductsCursor(cursor?: string, limit: number = 20) {
+  return await prisma.product.findMany({
+    take: limit + 1,
+    cursor: cursor ? { id: cursor } : undefined,
+    skip: cursor ? 1 : 0,
+    orderBy: { id: 'asc' },
+    where: { isActive: true },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      unitPrice: true,
+      // Only select needed fields
+    }
+  });
+}
+
+// Batch loading with DataLoader
+import DataLoader from 'dataloader';
+
+const batchProducts = async (ids: readonly string[]) => {
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...ids] } }
+  });
+  
+  return ids.map(id => products.find(p => p.id === id));
+};
+
+export const productLoader = new DataLoader(batchProducts);
+```
+
+### **6.3 Response Compression**
+
+```typescript
+import compression from 'compression';
+
+app.use(compression({
+  level: 6, // Compression level (1-9)
+  threshold: 1024, // Compress only responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+```
+
+---
+
+## **7. Monitoring & Observability**
+
+### **7.1 Prometheus Metrics**
+
+```typescript
+import prometheus from 'prom-client';
+
+// Create metrics
+const httpRequestDuration = new prometheus.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 1, 2, 5]
+});
+
+const activeConnections = new prometheus.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+const dbQueryDuration = new prometheus.Histogram({
+  name: 'db_query_duration_seconds',
+  help: 'Database query duration',
+  buckets: [0.01, 0.05, 0.1, 0.5, 1]
+});
+
+// Middleware to record metrics
+export const metricsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    httpRequestDuration.labels(req.method, req.route?.path || req.path, res.statusCode.toString())
+      .observe(duration);
+  });
+  
+  next();
+};
+
+// Metrics endpoint
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', prometheus.register.contentType);
+  res.end(await prometheus.register.metrics());
+});
+```
+
+### **7.2 Structured Logging**
+
+```typescript
+import winston from 'winston';
+import { ElasticsearchTransport } from 'winston-elasticsearch';
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'inventory-api' },
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' }),
+    new ElasticsearchTransport({
+      level: 'info',
+      clientOpts: { node: 'http://localhost:9200' },
+      index: 'inventory-logs'
+    })
+  ]
+});
+
+// Usage
+logger.info('Stock updated', {
+  productId: '123',
+  warehouseId: '456',
+  quantity: 100,
+  userId: 'user_789',
+  correlationId: req.headers['x-correlation-id']
+});
+```
+
+---
+
+## **8. Testing Strategy**
+
+### **8.1 Unit Test Example**
+
+```typescript
+// tests/unit/services/stock.service.test.ts
+import { StockService } from '../../../src/services/stock.service';
+import { prismaMock } from '../../mocks/prisma.mock';
+
+describe('StockService', () => {
+  let stockService: StockService;
+  
+  beforeEach(() => {
+    stockService = new StockService();
+  });
+  
+  describe('addStock', () => {
+    it('should add stock successfully', async () => {
+      const input = {
+        productId: 'prod_123',
+        quantity: 50,
+        warehouseId: 'ware_456',
+        userId: 'user_789'
+      };
+      
+      prismaMock.stock.findUnique.mockResolvedValue(null);
+      prismaMock.stock.create.mockResolvedValue({
+        id: 'stock_001',
+        quantity: 50,
+        availableQty: 50
+      });
+      
+      const result = await stockService.addStock(input);
+      
+      expect(result.currentStock).toBe(50);
+      expect(prismaMock.transaction.create).toHaveBeenCalled();
+    });
+    
+    it('should throw error when quantity is zero', async () => {
+      const input = {
+        productId: 'prod_123',
+        quantity: 0,
+        warehouseId: 'ware_456',
+        userId: 'user_789'
+      };
+      
+      await expect(stockService.addStock(input)).rejects.toThrow('Quantity must be greater than 0');
+    });
+  });
+});
+```
+
+### **8.2 Integration Test Example**
+
+```typescript
+// tests/integration/product.api.test.ts
+import request from 'supertest';
+import app from '../../src/app';
+
+describe('Product API', () => {
+  let authToken: string;
+  
+  beforeAll(async () => {
+    // Login and get token
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@test.com', password: 'Admin123!' });
+    
+    authToken = res.body.data.accessToken;
+  });
+  
+  describe('POST /api/products', () => {
+    it('should create a new product', async () => {
+      const res = await request(app)
+        .post('/api/products')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          name: 'Test Product',
+          sku: 'TEST-001',
+          category: 'Electronics',
+          unitPrice: 99.99,
+          costPrice: 50.00
+        });
+      
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.sku).toBe('TEST-001');
+    });
+    
+    it('should reject duplicate SKU', async () => {
+      const res = await request(app)
+        .post('/api/products')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          name: 'Duplicate Product',
+          sku: 'TEST-001', // Same SKU
+          category: 'Electronics',
+          unitPrice: 99.99
+        });
+      
+      expect(res.status).toBe(409);
+      expect(res.body.message).toContain('already exists');
+    });
+  });
+});
+```
+
+### **8.3 Load Testing Script**
+
+```javascript
+// load-test.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  stages: [
+    { duration: '30s', target: 20 }, // Ramp up
+    { duration: '1m', target: 20 },  // Stay at 20 users
+    { duration: '30s', target: 0 },  // Ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<200'], // 95% requests under 200ms
+    http_req_failed: ['rate<0.01'],   // Less than 1% errors
+  },
+};
+
+export default function() {
+  const response = http.get('http://localhost:3000/api/products?page=1&limit=20');
+  
+  check(response, {
+    'status is 200': (r) => r.status === 200,
+    'response time < 200ms': (r) => r.timings.duration < 200,
+  });
+  
+  sleep(1);
+}
+```
+
+---
+
+## **9. Deployment Configuration**
+
+### **9.1 Dockerfile (Multi-stage)**
+
+```dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY prisma ./prisma/
+
+RUN npm ci --only=production
+RUN npx prisma generate
+
+COPY . .
+
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+RUN apk add --no-cache tini
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY package*.json ./
+
+EXPOSE 3000
+
+USER node
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/server.js"]
+```
+
+### **9.2 Kubernetes Deployment**
+
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: inventory-api
+  template:
+    metadata:
+      labels:
+        app: inventory-api
+    spec:
+      containers:
+      - name: api
+        image: inventory-api:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: url
+        - name: REDIS_HOST
+          value: "redis-service"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-api
+spec:
+  selector:
+    app: inventory-api
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inventory-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inventory-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+### **9.3 CI/CD Pipeline (GitHub Actions)**
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run test:coverage
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image
+        run: docker build -t inventory-api:${{ github.sha }} .
+      - name: Push to ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+          docker tag inventory-api:${{ github.sha }} ${{ secrets.ECR_REGISTRY }}/inventory-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/inventory-api:latest
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service --cluster inventory-cluster --service inventory-api --force-new-deployment
+```
+
+---
+
+## **10. Disaster Recovery Plan**
+
+### **10.1 Backup Strategy**
+
+```bash
+#!/bin/bash
+# backup.sh - Automated database backup
+
+BACKUP_DIR="/backups/postgres"
+DATE=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=30
+
+# Create backup
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME \
+  | gzip > $BACKUP_DIR/backup_$DATE.sql.gz
+
+# Upload to S3
+aws s3 cp $BACKUP_DIR/backup_$DATE.sql.gz \
+  s3://inventory-backups/production/
+
+# Delete old backups
+find $BACKUP_DIR -type f -mtime +$RETENTION_DAYS -delete
+
+# Verify backup
+gunzip -t $BACKUP_DIR/backup_$DATE.sql.gz
+if [ $? -eq 0 ]; then
+  echo "Backup verified successfully"
+else
+  echo "Backup verification failed"
+  exit 1
+fi
+```
+
+### **10.2 Recovery Procedure**
+
+```sql
+-- Step 1: Restore from latest backup
+pg_restore -h $DB_HOST -U $DB_USER -d $DB_NAME \
+  --clean --if-exists \
+  latest_backup.dump
+
+-- Step 2: Verify data integrity
+SELECT COUNT(*) FROM products;
+SELECT COUNT(*) FROM transactions;
+
+-- Step 3: Check for any missing sequences
+SELECT setval('products_id_seq', (SELECT MAX(id) FROM products));
+
+-- Step 4: Rebuild indexes if needed
+REINDEX DATABASE inventory_db;
+
+-- Step 5: Refresh materialized views
+REFRESH MATERIALIZED VIEW stock_summary;
+```
+
+---
+
+## **11. Technical Risks & Mitigations**
+
+| Risk | Probability | Impact | Mitigation Strategy |
+|------|------------|--------|---------------------|
+| Database deadlocks | Medium | High | Implement retry logic, use advisory locks, optimize transactions |
+| Memory leaks | Low | High | Heap profiling, automatic restart on threshold, memory limits |
+| Redis failure | Low | Medium | Circuit breaker pattern, fallback to direct DB queries |
+| API throttling bypass | Low | High | Distributed rate limiting with Redis, API key rotation |
+| Data corruption | Very Low | Critical | ACID transactions, WAL archiving, point-in-time recovery |
+| Third-party API outages | Medium | Medium | Circuit breakers, retry with exponential backoff, fallback data |
+
+---
+
+## **12. Technical Acceptance Criteria**
+
+### **12.1 Code Quality**
+- [ ] Test coverage ≥ 85% for core modules
+- [ ] ESLint configuration with zero warnings
+- [ ] TypeScript strict mode enabled
+- [ ] No console.log in production code (use logger)
+- [ ] All PRs require 2 approvals
+
+### **12.2 Performance**
+- [ ] API response time p95 < 200ms
+- [ ] Database query time p95 < 100ms
+- [ ] Support 1000 concurrent users
+- [ ] Memory usage < 512MB per instance
+- [ ] CPU usage < 70% under peak load
+
+### **12.3 Security**
+- [ ] No critical vulnerabilities in dependency scan
+- [ ] All secrets encrypted in environment
+- [ ] Rate limiting implemented on all endpoints
+- [ ] SQL injection prevention verified
+- [ ] XSS protection headers configured
+- [ ] Audit logs for all state-changing operations
+
+### **12.4 Reliability**
+- [ ] 99.9% uptime in production
+- [ ] Automated backup working
+- [ ] Graceful shutdown handling
+- [ ] Health check endpoints responding
+- [ ] Auto-scaling configured
+
+---
+
+## **13. Development Environment Setup**
+
+### **13.1 Local Development with Docker Compose**
+
+```yaml
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: inventory_dev
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  redis-commander:
+    image: rediscommander/redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+
+volumes:
+  postgres_data:
+```
+
+### **13.2 Setup Commands**
+
+```bash
+# Clone repository
+git clone https://github.com/yourcompany/inventory-backend.git
+cd inventory-backend
+
+# Copy environment variables
+cp .env.example .env
+
+# Start dependencies
+docker-compose -f docker-compose.dev.yml up -d
+
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Run migrations
+npx prisma migrate dev
+
+# Seed database
+npm run prisma:seed
+
+# Start development server
+npm run dev
+
+# Run tests
+npm test
+
+# Run linter
+npm run lint
+```
+
+---
+
+## **14. References & Standards**
+
+### **14.1 Coding Standards**
+- **TypeScript Style Guide**: Google TypeScript Style Guide
+- **Git Commit Convention**: Conventional Commits v1.0.0
+- **Branch Strategy**: GitFlow with feature branches
+- **API Design**: RESTful API Best Practices (Microsoft)
+
+### **14.2 External Documentation**
+- [Node.js Best Practices](https://github.com/goldbergyoni/nodebestpractices)
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [PostgreSQL Performance Tuning](https://wiki.postgresql.org/wiki/Performance_Optimization)
+- [OWASP API Security Top 10](https://owasp.org/www-project-api-security/)
+
+### **14.3 Tools & Resources**
+- **API Testing**: Postman Collections
+- **Monitoring**: Grafana Dashboards
+- **Logging**: ELK Stack (Elasticsearch, Logstash, Kibana)
+- **Error Tracking**: Sentry
+- **Documentation**: Confluence (internal), ReadTheDocs (external)
+
+---
+
+## **15. Sign-off & Approval**
+
+| Role | Name | Signature | Date |
+|------|------|-----------|------|
+| Technical Architect | _______ | _______ | _______ |
+| Lead Developer | _______ | _______ | _______ |
+| DevOps Engineer | _______ | _______ | _______ |
+| Security Engineer | _______ | _______ | _______ |
+| QA Lead | _______ | _______ | _______ |
+
+---
+
+## **16. Version History**
+
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 0.1 | 2026-06-01 | Initial draft | Tech Lead |
+| 0.5 | 2026-06-03 | Added security & deployment sections | Security Team |
+| 1.0 | 2026-06-05 | Final version for development | Technical Architect |
+
+---
+
+**This Technical Requirements Document serves as the authoritative source for all implementation decisions. Any deviations require change request approval and updated documentation.**
